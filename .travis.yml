@@ -1,0 +1,66 @@
+language: rust
+cache: cargo
+
+addons:
+  apt:
+    packages:
+    - libncurses-dev
+
+git:
+  depth: 1
+
+os:
+  - linux
+  - osx
+
+rust:
+  - 1.44.0
+  - stable
+  - nightly
+
+matrix:
+  fast_finish: true
+  include:
+    - name: "linux i586 (clippy))"
+      os: linux
+      env: CLIPPY=true
+      rust: 1.44.0
+      env: TARGET=i586-unknown-linux-gnu
+    - name: "linux x86_64 (clippy))"
+      os: linux
+      env: CLIPPY=true
+      rust: 1.44.0
+      env: TARGET=x86_64-unknown-linux-gnu
+    - name: "osx x86_64 (clippy)"
+      os: osx
+      env: CLIPPY=true
+      rust: 1.44.0
+      env: TARGET=x86_64-apple-darwin
+    - if: tag IS present
+      name: "linux x86_64 (release)"
+      os: linux
+      rust: stable
+      env: TARGET=x86_64-unknown-linux-gnu DEPLOY=1
+    - if: tag IS present
+      name: "osx x86_64 (release)"
+      os: osx
+      rust: stable
+      env: TARGET=x86_64-apple-darwin DEPLOY=1
+  allow_failures:
+    - rust: nightly
+
+script: ci/script.sh
+before_deploy: ci/before_deploy.sh
+
+deploy:
+  - provider: releases
+    api_key:
+      secure: yvqTnPO5fYon6+LXZnqlzb5nV/BtDhCmDn7Xh7mMw0PVxOYciQp76DEbAXVT2E0IRsZhJRbxDRiW7g31h4vzizqh8rFJTfa42dPLklivnEHvj5YL8tX7KacP+ALkuxAAKa+6JkeEiqnInbz5AROnZY+e748tRAD6hdoqImFg0WeGZZ18V+Vq/uHSJHbETxBKQ+Di0S7pDzVJ1zam4clbsD8nq3SxF9W3JviT8q1F8WylWd2L0+OJ1nV69Ikb4+lGW3YQCM7+1q13hDv19cWyILthqC8OxG0Yen19Qkc6NRxBWtTXETv5Xupro/cF56ywwECKUIVyE8lfGsP471SveDJm85pK9BF665yn7q5wkBy7xgXP9775koErfd34T8r1OG9T3c9n2SwyFZ2j1O0JDqbKH0gAU6ogIe6S8pkQ80PfwJ1BMG2NxCz/28c1hVODS+A/lTSd0D3jI7qJbEC2J1wpKd+pDHdkYlrHd3hHWzdMbE66gTUcG8gvqmjkgc7CUnXvpl9sR1GBBR9AC/p0eySUTYrIlzGMwNslrwZzs+LLGEc16XcKpET3WIQJ1Fy4e01n5wnEeSM3GmgE/Xp34XYBLMoSQ5RdIVivnuwLkvUzwtQkKwzIsAjXUOD8e4e5+TUCjcFSKwJnLU14X7/7vHWjcURzPhlfpTACiMwasxc=
+    skip_cleanup: true
+    file_glob: true
+    file: cloudman-$TRAVIS_TAG-$TARGET.tar.gz
+    on:
+      tags: true
+      rust: stable
+      condition: $DEPLOY = 1
+      repo: dutchcoders/cloudman
