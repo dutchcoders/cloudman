@@ -7,12 +7,15 @@ The profiles and defaults as configured in ~/.aws/credentials will be used.
 [![Build status](https://api.travis-ci.org/dutchcoders/cloudman.svg?branch=master&status=passed)](https://travis-ci.org/github/dutchcoders/cloudman)
 [![Crates.io](https://img.shields.io/crates/v/cloudman.svg)](https://crates.io/crates/cloudman)
 [![Packaging status](https://repology.org/badge/tiny-repos/cloudman.svg)](https://repology.org/project/cloudman/badges)
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 ### Screenshots
-<img src="screenshots/instances.png" width="350" align="center" title="instances overview" />
-<img src="screenshots/change_region.png" width="350" align="center" title="change aws region" />
-<img src="screenshots/details.png" width="350" align="center" title="detail information for instance" />
-<img src="screenshots/console.png" width="350" align="center" title="console output for instance" />
+<div>
+<img src="screenshots/instances.png" width="48%" title="instances overview" />
+<img src="screenshots/change_region.png" width="48%" title="change aws region" />
+<img src="screenshots/details.png" width="48%" title="detail information for instance" />
+<img src="screenshots/console.png" width="48%" title="console output for instance" />
+</div>
 
 ## Usage
 Cloudman can be started optionally with a region and profile to use. 
@@ -75,26 +78,42 @@ $ ./target/release/cloudman --version
 ```
 
 ## Current features
-* switch between region
+* overview of all instances
+* support different profiles
+* switch easily between aws regions
 * connect using SSM to instance (using tmux)
-* search through and filter instances
+* search through instances
+* filter instances
+* show detailed information for instances
+* show console output if supported
 
-# Features
-* start and stop instances
+# Roadmap
+* start and stop instances (actions)
 * request spot instances
 * modifyable columns
 * sorting
-* help
 * show filter active
 * show indicator of loading
-* search through log
-* actions
+* search through console output
+* much more
 
-## Contributions
+## Contribute
 
-Contributions are welcome.
++ I :heart: pull requests and bug reports (see the [Contributing
+Guidelines][contribute])!
++ Don't hesitate to [tell me my rust skills suck](https://github.com/dutchcoders/cloudman/issues/new), but please tell me why.
 
-## Creators
+## Thanks
+
+Special thanks to:
+
+* (Doom Emacs)[https://github.com/hlissner/doom-emacs] for making the Emacs framework I love.
+* (Cursive)[https://github.com/gyscos/cursive/] for making the textual user interface Cloudman is built upon.
+* (htop)[https://github.com/hishamhm/htop] for the inspirational interface.
+
+Everyone else that inspired me.
+
+## Creator
 
 **Remco Verhoef**
 
