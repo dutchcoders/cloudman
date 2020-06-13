@@ -99,17 +99,16 @@ $ ./target/release/cloudman --version
 
 ## Contribute
 
-+ I :heart: pull requests and bug reports (see the [Contributing
-Guidelines][contribute])!
++ I :heart: pull requests and bug reports
 + Don't hesitate to [tell me my rust skills suck](https://github.com/dutchcoders/cloudman/issues/new), but please tell me why.
 
 ## Thanks
 
 Special thanks to:
 
-* (Doom Emacs)[https://github.com/hlissner/doom-emacs] for making the Emacs framework I love.
-* (Cursive)[https://github.com/gyscos/cursive/] for making the textual user interface Cloudman is built upon.
-* (htop)[https://github.com/hishamhm/htop] for the inspirational interface.
+* [Doom Emacs](https://github.com/hlissner/doom-emacs) for making the Emacs framework I love.
+* [Cursive](https://github.com/gyscos/cursive/) for making the textual user interface Cloudman is built upon.
+* [htop](https://github.com/hishamhm/htop) for the inspirational interface.
 
 Everyone else that inspired me.
 
