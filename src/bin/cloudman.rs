@@ -2,11 +2,9 @@ extern crate cursive;
 extern crate dirs;
 extern crate rusoto_core;
 extern crate rusoto_ec2;
+extern crate tokio;
 
 use clap::Clap;
-use cloudman_rs::views::{
-    BottomBarType, BottomBarView, Foo, Header, InstancesView, KeyCodeView, LogView, TableViewItem,
-};
 use cursive::align::HAlign;
 use cursive::direction::Orientation;
 use cursive::event::{Event, EventResult, Key};
@@ -14,8 +12,10 @@ use cursive::theme::{BaseColor, Color, ColorStyle, PaletteColor};
 use cursive::traits::*;
 use cursive::view::View;
 use cursive::view::*;
-use cursive::views::*;
-use cursive::views::{Dialog, EditView, LinearLayout, ResizedView, TextView};
+use cursive::views::{
+    Canvas, Dialog, EditView, LinearLayout, OnEventView, ResizedView, SelectView, TextContent,
+    TextView,
+};
 use cursive::Cursive;
 use cursive::CursiveExt;
 use rusoto_core::credential::ProfileProvider;
@@ -30,6 +30,10 @@ use std::hash::Hash;
 use std::panic;
 use std::process::Command;
 use std::str::FromStr;
+
+use cloudman_rs::views::{
+    BottomBarType, BottomBarView, Foo, Header, InstancesView, KeyCodeView, LogView, TableViewItem,
+};
 
 // Use of a mod or pub mod is not actually necessary.
 pub mod built_info {
@@ -135,20 +139,18 @@ fn get_instances_with_region(
 
     let mut instances: Vec<Instance> = vec![];
 
-    match client.describe_instances(req).sync() {
-        Ok(response) => {
-            if let Some(reservations) = response.reservations {
-                for reservation in reservations {
-                    if let Some(res_instances) = reservation.instances {
-                        for instance in res_instances {
-                            instances.push(instance);
-                        }
-                    }
+    let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+    let ft = client.describe_instances(req);
+
+    let response = runtime.block_on(ft)?;
+    if let Some(reservations) = response.reservations {
+        for reservation in reservations {
+            if let Some(res_instances) = reservation.instances {
+                for instance in res_instances {
+                    instances.push(instance);
                 }
             }
-        }
-        Err(error) => {
-            return Err(Box::new(error));
         }
     }
 
@@ -640,7 +642,13 @@ fn get_instance_log(
         ..Default::default()
     };
 
-    let output = client.get_console_output(req).sync()?.output.unwrap();
+    let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+    let ft = client.get_console_output(req);
+
+    let response = runtime.block_on(ft)?;
+
+    let output = response.output.unwrap();
 
     let buf = &base64::decode(&output).unwrap()[..];
 
@@ -939,6 +947,7 @@ fn action(s: &mut Cursive) {
 fn change_region(s: &mut Cursive) {
     let regions = vec![
         ApEast1,
+        AfSouth1,
         ApNortheast1,
         ApNortheast2,
         ApSouth1,
@@ -950,6 +959,7 @@ fn change_region(s: &mut Cursive) {
         EuWest2,
         EuWest3,
         EuNorth1,
+        EuSouth1,
         SaEast1,
         UsEast1,
         UsEast2,

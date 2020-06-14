@@ -1,8 +1,4 @@
 extern crate cursive;
-extern crate futures;
-extern crate rusoto_core;
-extern crate rusoto_ec2;
-extern crate tokio_core;
 
 use cursive::direction::Direction;
 use cursive::event::{Callback, Event, EventResult, Key};

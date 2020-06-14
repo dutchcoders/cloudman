@@ -1,10 +1,4 @@
-extern crate base64;
 extern crate cursive;
-extern crate enum_map;
-extern crate futures;
-extern crate rusoto_core;
-extern crate rusoto_ec2;
-extern crate tokio_core;
 
 use cursive::direction::Direction;
 use cursive::event::*;

@@ -14,14 +14,14 @@ cursive = { version = "0.15", features = ["toml", "markdown"] }
 caseless = "*"
 dirs = "*"
 rand = "*"
+tokio = "*"
 tokio-core = "*"
-futures = "*"
 enum-map = "*"
 hashbrown = "*"
 base64 = "*"
 vte = "*"
 clap = "3.0.0-beta.1"
 
-rusoto_core = { version = "0.42", default_features = false, features = ["rustls"] }
-rusoto_ec2 = { version = "0.42", default_features = false, features = ["rustls"] }
-rusoto_logs = { version = "0.42", default_features = false, features = ["rustls"] }
+rusoto_core = { version = "0.44", default_features = false, features = ["native-tls"] }
+rusoto_ec2 = { version = "0.44", default_features = false, features = ["native-tls"] }
+rusoto_logs = { version = "0.44", default_features = false, features = ["native-tls"] }
