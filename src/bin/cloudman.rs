@@ -988,7 +988,7 @@ fn change_region(s: &mut Cursive) {
             return;
         }
 
-        match get_instances_with_region(&ud.profile, &ud.region) {
+        match get_instances_with_region(&ud.profile, &region) {
             Ok(instances) => {
                 let mut iv = s
                     .find_name::<InstancesView<Instance, BasicColumn>>("instances")
