@@ -229,8 +229,8 @@ fn run() {
     let instances = match get_instances_with_region(&profile, &region) {
         Ok(instances) => instances,
         Err(err) => {
-            println!("Could not retrieve instances\n\n{}", err);
-            return;
+            eprintln!("Could not retrieve instances\n\n{}", err);
+            std::process::exit(1);
         }
     };
 
