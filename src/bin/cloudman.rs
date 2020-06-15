@@ -22,7 +22,7 @@ use rusoto_core::credential::ProfileProvider;
 use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
 use rusoto_core::Region::*;
-use rusoto_ec2::{DescribeInstancesRequest, Ec2, Ec2Client, Instance, RebootInstancesRequest, Tag};
+use rusoto_ec2::{StartInstancesRequest, StopInstancesRequest, DescribeInstancesRequest, Ec2, Ec2Client, Instance, RebootInstancesRequest, Tag};
 use std::cmp::Ordering;
 use std::env;
 use std::error::Error;
@@ -969,25 +969,22 @@ fn action(s: &mut Cursive) {
 
         let client = client.unwrap();
         match action {
-            Actions::Start => {}
-            Actions::Stop => {}
-            Actions::Reboot => {
-                let req = RebootInstancesRequest {
-                    dry_run: Some(true),
+            Actions::Start => {
+                let req = StartInstancesRequest {
+                    dry_run: Some(ud.dry_run),
                     instance_ids: [instance.unwrap().instance_id.clone().unwrap()].to_vec(),
-                    //..Default::default()
+                    ..Default::default()
                 };
-                let ft = client.reboot_instances(req);
+
+                let ft = client.start_instances(req);
 
                 let mut runtime = tokio::runtime::Runtime::new().unwrap();
 
-                let result = runtime.block_on(ft);
-
-                match result {
+                match runtime.block_on(ft) {
                     Ok(_) => {
                         match s.cb_sink().send(Box::new(|s| {
-                            let d = Dialog::around(TextView::new("Not running within tmux."))
-                                .title("Error")
+                            let d = Dialog::around(TextView::new("The instance will start."))
+                                .title("Start instance")
                                 .button("Cancel", |s| {
                                     s.pop_layer();
                                 });
@@ -996,41 +993,84 @@ fn action(s: &mut Cursive) {
 
                             s.add_layer(dl);
                         })) {
-                            Ok(_) => {
-                                let d = Dialog::around(TextView::new("Not running within tmux."))
-                                    .title("Error")
-                                    .button("Cancel", |s| {
-                                        s.pop_layer();
-                                    });
-
-                                let dl = event_view(d);
-
-                                s.add_layer(dl);
-                            }
-
-                            Err(e) => {
-                                let d = Dialog::around(TextView::new("Not running within tmux."))
-                                    .title("Error")
-                                    .button("Cancel", |s| {
-                                        s.pop_layer();
-                                    });
-
-                                let dl = event_view(d);
-
-                                s.add_layer(dl);
+                            Ok(_) => (),
+                            Err(err) => {
+                                error_dialog(s, "Could not start instance.", &format!("{}", err));
                             }
                         };
                     }
-                    Err(e) => {
-                        let d = Dialog::around(TextView::new("Not running within tmux."))
-                            .title("Error")
-                            .button("Cancel", |s| {
-                                s.pop_layer();
-                            });
+                    Err(err) => {
+                        error_dialog(s, "Could not start instance.", &format!("{}", err));
+                    }
+                };
+            }
+            Actions::Stop => {
+                let req = StopInstancesRequest {
+                    dry_run: Some(ud.dry_run),
+                    instance_ids: [instance.unwrap().instance_id.clone().unwrap()].to_vec(),
+                    ..Default::default()
+                };
 
-                        let dl = event_view(d);
+                let ft = client.stop_instances(req);
 
-                        s.add_layer(dl);
+                let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+                match runtime.block_on(ft) {
+                    Ok(_) => {
+                        match s.cb_sink().send(Box::new(|s| {
+                            let d = Dialog::around(TextView::new("The instance will be stopped."))
+                                .title("Stop instance")
+                                .button("Cancel", |s| {
+                                    s.pop_layer();
+                                });
+
+                            let dl = event_view(d);
+
+                            s.add_layer(dl);
+                        })) {
+                            Ok(_) => (),
+                            Err(err) => {
+                                error_dialog(s, "Could not stop instance.", &format!("{}", err));
+                            }
+                        };
+                    }
+                    Err(err) => {
+                        error_dialog(s, "Could not stop instance.", &format!("{}", err));
+                    }
+                };
+            }
+            Actions::Reboot => {
+                let req = RebootInstancesRequest {
+                    dry_run: Some(ud.dry_run),
+                    instance_ids: [instance.unwrap().instance_id.clone().unwrap()].to_vec(),
+                    //..Default::default()
+                };
+
+                let ft = client.reboot_instances(req);
+
+                let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+                match runtime.block_on(ft) {
+                    Ok(_) => {
+                        match s.cb_sink().send(Box::new(|s| {
+                            let d = Dialog::around(TextView::new("The instance will reboot."))
+                                .title("Reboot instance")
+                                .button("Cancel", |s| {
+                                    s.pop_layer();
+                                });
+
+                            let dl = event_view(d);
+
+                            s.add_layer(dl);
+                        })) {
+                            Ok(_) => (),
+                            Err(err) => {
+                                error_dialog(s, "Could not reboot instance.", &format!("{}", err));
+                            }
+                        };
+                    }
+                    Err(err) => {
+                        error_dialog(s, "Could not reboot instance.", &format!("{}", err));
                     }
                 };
             }
@@ -1038,11 +1078,24 @@ fn action(s: &mut Cursive) {
     }
     select.set_on_submit(ok);
 
+        let table = &s
+            .find_name::<InstancesView<Instance, BasicColumn>>("instances")
+            .unwrap();
+
+        let instance = table.item();
+
+        if instance.is_none() {
+            return;
+        }
+
+
+    let instance = instance.unwrap();
+
     let select = OnEventView::new(select);
     s.add_layer(event_view(
-        Dialog::around(select.scrollable().fixed_size((20, 10)))
+        Dialog::around(select.scrollable())
             .h_align(HAlign::Center)
-            .title("Action")
+            .title(format!("Instance action ({})", &instance.instance_id.clone().unwrap()))
             .button("Cancel", |s| {
                 s.pop_layer();
             }),
@@ -1162,6 +1215,18 @@ fn change_region(s: &mut Cursive) {
             s.pop_layer();
         }),
     );
+}
+
+fn error_dialog(s: &mut Cursive, title: &str, description: &str) {
+    let d = Dialog::around(TextView::new(description))
+        .title(title)
+        .button("Cancel", |s| {
+            s.pop_layer();
+        });
+
+    let dl = event_view(d);
+
+    s.add_layer(dl);
 }
 
 fn change_profile(s: &mut Cursive) {
