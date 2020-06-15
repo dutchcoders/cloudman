@@ -22,14 +22,17 @@ use rusoto_core::credential::ProfileProvider;
 use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
 use rusoto_core::Region::*;
-use rusoto_ec2::{DescribeInstancesRequest, Ec2, Ec2Client, Instance, Tag};
+use rusoto_ec2::{DescribeInstancesRequest, Ec2, Ec2Client, Instance, RebootInstancesRequest, Tag};
 use std::cmp::Ordering;
 use std::env;
 use std::error::Error;
+use std::future::Future;
 use std::hash::Hash;
 use std::panic;
 use std::process::Command;
 use std::str::FromStr;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
 
 use cloudman_rs::views::{
     BottomBarType, BottomBarView, Foo, Header, InstancesView, KeyCodeView, LogView, TableViewItem,
@@ -52,6 +55,14 @@ enum BasicColumn {
     State,
     PublicIp,
     PrivateIp,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+enum Actions {
+    Start,
+    Stop,
+
+    Reboot,
 }
 
 fn find_tag(key: String, tags: Option<Vec<Tag>>) -> Option<String> {
@@ -165,6 +176,9 @@ struct Opts {
 
     #[clap(short, long)]
     profile: Option<String>,
+
+    #[clap(long)]
+    disable_dry_run: bool,
 }
 
 fn main() {
@@ -242,6 +256,7 @@ fn run() {
     rv.profile = profile;
     rv.instances = instances.clone();
     rv.region = region.clone();
+    rv.dry_run = !opts.disable_dry_run;
 
     siv.set_user_data::<ReturnValues>(rv);
 
@@ -346,6 +361,7 @@ struct ReturnValues {
     filter: String,
     filtering: bool,
     instances: Vec<Instance>,
+    dry_run: bool,
 }
 
 impl ReturnValues {
@@ -359,6 +375,7 @@ impl ReturnValues {
             filter: "".to_string(),
             filtering: false,
             instances: vec![],
+            dry_run: false,
         }
     }
 }
@@ -925,18 +942,106 @@ fn run_bsod() {
 }
 
 fn action(s: &mut Cursive) {
-    let mut select = SelectView::<String>::new()
+    let mut select = SelectView::<Actions>::new()
         .h_align(HAlign::Center)
-        .autojump();
+        .autojump()
+        .item("start", Actions::Start)
+        .item("stop", Actions::Stop)
+        .item("reboot", Actions::Reboot);
 
-    select.add_all_str(["start", "stop"].iter().map(|s| s.to_string()));
+    fn ok(s: &mut Cursive, action: &Actions) {
+        let table = &s
+            .find_name::<InstancesView<Instance, BasicColumn>>("instances")
+            .unwrap();
 
-    fn ok(_s: &mut Cursive, _name: &str) {}
+        let instance = table.item();
+
+        if instance.is_none() {
+            return;
+        }
+
+        let ud = s.user_data::<ReturnValues>().unwrap();
+
+        let client = new_ec2client(&ud.region, &ud.profile);
+        if client.is_err() {
+            return;
+        };
+
+        let client = client.unwrap();
+        match action {
+            Actions::Start => {}
+            Actions::Stop => {}
+            Actions::Reboot => {
+                let req = RebootInstancesRequest {
+                    dry_run: Some(true),
+                    instance_ids: [instance.unwrap().instance_id.clone().unwrap()].to_vec(),
+                    //..Default::default()
+                };
+                let ft = client.reboot_instances(req);
+
+                let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+                let result = runtime.block_on(ft);
+
+                match result {
+                    Ok(_) => {
+                        match s.cb_sink().send(Box::new(|s| {
+                            let d = Dialog::around(TextView::new("Not running within tmux."))
+                                .title("Error")
+                                .button("Cancel", |s| {
+                                    s.pop_layer();
+                                });
+
+                            let dl = event_view(d);
+
+                            s.add_layer(dl);
+                        })) {
+                            Ok(_) => {
+                                let d = Dialog::around(TextView::new("Not running within tmux."))
+                                    .title("Error")
+                                    .button("Cancel", |s| {
+                                        s.pop_layer();
+                                    });
+
+                                let dl = event_view(d);
+
+                                s.add_layer(dl);
+                            }
+
+                            Err(e) => {
+                                let d = Dialog::around(TextView::new("Not running within tmux."))
+                                    .title("Error")
+                                    .button("Cancel", |s| {
+                                        s.pop_layer();
+                                    });
+
+                                let dl = event_view(d);
+
+                                s.add_layer(dl);
+                            }
+                        };
+                    }
+                    Err(e) => {
+                        let d = Dialog::around(TextView::new("Not running within tmux."))
+                            .title("Error")
+                            .button("Cancel", |s| {
+                                s.pop_layer();
+                            });
+
+                        let dl = event_view(d);
+
+                        s.add_layer(dl);
+                    }
+                };
+            }
+        }
+    }
     select.set_on_submit(ok);
 
     let select = OnEventView::new(select);
     s.add_layer(event_view(
         Dialog::around(select.scrollable().fixed_size((20, 10)))
+            .h_align(HAlign::Center)
             .title("Action")
             .button("Cancel", |s| {
                 s.pop_layer();
