@@ -22,7 +22,10 @@ use rusoto_core::credential::ProfileProvider;
 use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
 use rusoto_core::Region::*;
-use rusoto_ec2::{StartInstancesRequest, StopInstancesRequest, DescribeInstancesRequest, Ec2, Ec2Client, Instance, RebootInstancesRequest, Tag};
+use rusoto_ec2::{
+    DescribeInstancesRequest, Ec2, Ec2Client, Instance, RebootInstancesRequest,
+    StartInstancesRequest, StopInstancesRequest, Tag,
+};
 use std::cmp::Ordering;
 use std::env;
 use std::error::Error;
@@ -613,6 +616,21 @@ fn refresh(s: &mut Cursive) {
 
     match get_instances_with_region(&ud.profile, &ud.region) {
         Ok(instances) => {
+            ud.instances = instances.clone();
+
+            let instances: Vec<Instance> = if ud.filter != "" {
+                instances
+                    .into_iter()
+                    .filter(|i| {
+                        find_tag("Name".to_string(), i.tags.clone())
+                            .unwrap()
+                            .contains(&ud.filter)
+                    })
+                    .collect()
+            } else {
+                instances
+            };
+
             iv.set_instances(instances);
         }
         Err(err) => {
@@ -995,11 +1013,13 @@ fn action(s: &mut Cursive) {
                         })) {
                             Ok(_) => (),
                             Err(err) => {
+                                s.pop_layer();
                                 error_dialog(s, "Could not start instance.", &format!("{}", err));
                             }
                         };
                     }
                     Err(err) => {
+                        s.pop_layer();
                         error_dialog(s, "Could not start instance.", &format!("{}", err));
                     }
                 };
@@ -1030,11 +1050,13 @@ fn action(s: &mut Cursive) {
                         })) {
                             Ok(_) => (),
                             Err(err) => {
+                                s.pop_layer();
                                 error_dialog(s, "Could not stop instance.", &format!("{}", err));
                             }
                         };
                     }
                     Err(err) => {
+                        s.pop_layer();
                         error_dialog(s, "Could not stop instance.", &format!("{}", err));
                     }
                 };
@@ -1065,11 +1087,13 @@ fn action(s: &mut Cursive) {
                         })) {
                             Ok(_) => (),
                             Err(err) => {
+                                s.pop_layer();
                                 error_dialog(s, "Could not reboot instance.", &format!("{}", err));
                             }
                         };
                     }
                     Err(err) => {
+                        s.pop_layer();
                         error_dialog(s, "Could not reboot instance.", &format!("{}", err));
                     }
                 };
@@ -1078,16 +1102,15 @@ fn action(s: &mut Cursive) {
     }
     select.set_on_submit(ok);
 
-        let table = &s
-            .find_name::<InstancesView<Instance, BasicColumn>>("instances")
-            .unwrap();
+    let table = &s
+        .find_name::<InstancesView<Instance, BasicColumn>>("instances")
+        .unwrap();
 
-        let instance = table.item();
+    let instance = table.item();
 
-        if instance.is_none() {
-            return;
-        }
-
+    if instance.is_none() {
+        return;
+    }
 
     let instance = instance.unwrap();
 
@@ -1095,7 +1118,10 @@ fn action(s: &mut Cursive) {
     s.add_layer(event_view(
         Dialog::around(select.scrollable())
             .h_align(HAlign::Center)
-            .title(format!("Instance action ({})", &instance.instance_id.clone().unwrap()))
+            .title(format!(
+                "Action ({})",
+                &instance.instance_id.clone().unwrap()
+            ))
             .button("Cancel", |s| {
                 s.pop_layer();
             }),
