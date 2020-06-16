@@ -39,7 +39,13 @@ impl View for LogView {
     fn draw(&self, printer: &Printer<'_, '_>) {
         self.scrollbase.draw(printer, |printer, i| {
             let lines = self.lines.clone();
-            printer.print((0, 0), lines.get(i).unwrap());
+
+            // ignore the first line, as it is incomplete
+            if let Some(line) = lines.get(i+1) {
+                printer.print((0, 0), line);
+            } else {
+                printer.print((0, 0), "⍇");
+            }
         });
     }
 
@@ -48,7 +54,7 @@ impl View for LogView {
 
         let h = std::cmp::max(lines.len(), constraint.y);
 
-        self.scrollbase.set_heights(constraint.y, h);
+        self.scrollbase.set_heights(constraint.y, h+1);
 
         constraint
     }
