@@ -29,13 +29,10 @@ use rusoto_ec2::{
 use std::cmp::Ordering;
 use std::env;
 use std::error::Error;
-use std::future::Future;
 use std::hash::Hash;
 use std::panic;
 use std::process::Command;
 use std::str::FromStr;
-use std::sync::Arc;
-use tokio::runtime::Runtime;
 
 use cloudman_rs::views::{
     BottomBarType, BottomBarView, Foo, Header, InstancesView, KeyCodeView, LogView, TableViewItem,
@@ -71,12 +68,11 @@ enum Actions {
 fn find_tag(key: String, tags: Option<Vec<Tag>>) -> Option<String> {
     match tags {
         Some(tags) => {
-            tags.iter()
-                .find(|t| t.key.clone().unwrap().eq_ignore_ascii_case(&key))
-                .clone()
-                .unwrap()
-                .clone()
-                .value
+            match tags.iter()
+                      .find(|t| t.key.clone().unwrap().eq_ignore_ascii_case(&key)) {
+                          Some(tag) => tag.clone().value,
+                          None => None,
+                      }
         }
         None => None,
     }
