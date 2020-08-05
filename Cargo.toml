@@ -1,6 +1,6 @@
 [package]
 name = "cloudman-rs"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["Remco Verhoef <remco@dutchcoders.io>"]
 edition = "2018"
 build = "build.rs"
@@ -14,7 +14,7 @@ cursive = { version = "0.15", features = ["toml", "markdown"] }
 caseless = "*"
 dirs = "*"
 rand = "*"
-tokio = "*"
+tokio = "0.2"
 tokio-core = "*"
 enum-map = "*"
 hashbrown = "*"
@@ -22,6 +22,6 @@ base64 = "*"
 vte = "*"
 clap = "3.0.0-beta.1"
 
-rusoto_core = { version = "0.44", default_features = false, features = ["native-tls"] }
-rusoto_ec2 = { version = "0.44", default_features = false, features = ["native-tls"] }
-rusoto_logs = { version = "0.44", default_features = false, features = ["native-tls"] }
+rusoto_core = { version = "0.45", default_features = false, features = ["native-tls"] }
+rusoto_ec2 = { version = "0.45", default_features = false, features = ["native-tls"] }
+rusoto_logs = { version = "0.45", default_features = false, features = ["native-tls"] }
