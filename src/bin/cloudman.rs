@@ -23,7 +23,7 @@ use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
 use rusoto_core::Region::*;
 use rusoto_ec2::{
-    DescribeInstancesRequest, Ec2, Ec2Client, Instance, RebootInstancesRequest,
+    DescribeInstancesRequest, Ec2, Ec2Client, RebootInstancesRequest,
     StartInstancesRequest, StopInstancesRequest, Tag,
 };
 use std::cmp::Ordering;
@@ -49,6 +49,7 @@ enum BasicColumn {
     InstanceID,
     Name,
     Architecture,
+    Region,
     VpcID,
     Type,
     Key,
@@ -65,6 +66,11 @@ enum Actions {
     Reboot,
 }
 
+#[derive(Clone, PartialEq)]
+pub struct Instance {
+    instance: rusoto_ec2::Instance,
+    region: Region,
+}
 fn find_tag(key: String, tags: Option<Vec<Tag>>) -> Option<String> {
     match tags {
         Some(tags) => {
@@ -84,7 +90,7 @@ impl TableViewItem<BasicColumn> for Instance {
             BasicColumn::Name => {
                 ColorStyle::new(Color::Dark(BaseColor::Green), Color::TerminalDefault)
             }
-            BasicColumn::State => match self.state.as_ref().unwrap().code {
+            BasicColumn::State => match self.instance.state.as_ref().unwrap().code {
                 Some(16) => ColorStyle::new(Color::TerminalDefault, Color::TerminalDefault),
                 _ => ColorStyle::new(Color::Light(BaseColor::Red), Color::TerminalDefault),
             },
@@ -94,27 +100,28 @@ impl TableViewItem<BasicColumn> for Instance {
 
     fn to_column(&self, column: BasicColumn) -> String {
         match column {
-            BasicColumn::InstanceID => self.instance_id.clone().unwrap_or_else(|| "".to_string()),
+            BasicColumn::InstanceID => self.instance.instance_id.clone().unwrap_or_else(|| "".to_string()),
             BasicColumn::Name => {
-                find_tag("name".to_string(), self.tags.clone()).unwrap_or_else(|| "".to_string())
+                find_tag("name".to_string(), self.instance.tags.clone()).unwrap_or_else(|| "".to_string())
             }
+            BasicColumn::Region => self.region.clone().name().to_string(),
             BasicColumn::Architecture => {
-                self.architecture.clone().unwrap_or_else(|| "".to_string())
+                self.instance.architecture.clone().unwrap_or_else(|| "".to_string())
             }
-            BasicColumn::VpcID => self.vpc_id.clone().unwrap_or_else(|| "".to_string()),
-            BasicColumn::Type => self.instance_type.clone().unwrap_or_else(|| "".to_string()),
-            BasicColumn::Key => self.key_name.clone().unwrap_or_else(|| "".to_string()),
-            BasicColumn::State => self
+            BasicColumn::VpcID => self.instance.vpc_id.clone().unwrap_or_else(|| "".to_string()),
+            BasicColumn::Type => self.instance.instance_type.clone().unwrap_or_else(|| "".to_string()),
+            BasicColumn::Key => self.instance.key_name.clone().unwrap_or_else(|| "".to_string()),
+            BasicColumn::State => self.instance
                 .state
                 .clone()
                 .unwrap()
                 .name
                 .unwrap_or_else(|| "".to_string()),
-            BasicColumn::PublicIp => self
+            BasicColumn::PublicIp => self.instance
                 .public_ip_address
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
-            BasicColumn::PrivateIp => self
+            BasicColumn::PrivateIp => self.instance
                 .private_ip_address
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
@@ -126,39 +133,45 @@ impl TableViewItem<BasicColumn> for Instance {
         Self: Sized,
     {
         match column {
-            BasicColumn::Name => self.instance_id.cmp(&other.instance_id),
-            BasicColumn::InstanceID => self.instance_id.cmp(&other.instance_id),
-            BasicColumn::Architecture => self.architecture.cmp(&other.architecture),
-            BasicColumn::VpcID => self.architecture.cmp(&other.architecture),
-            BasicColumn::Type => self.architecture.cmp(&other.architecture),
-            BasicColumn::Key => self.architecture.cmp(&other.architecture),
-            BasicColumn::State => self.architecture.cmp(&other.architecture),
-            BasicColumn::PublicIp => self.architecture.cmp(&other.architecture),
-            BasicColumn::PrivateIp => self.architecture.cmp(&other.architecture),
+            BasicColumn::Name => self.instance.instance_id.cmp(&other.instance.instance_id),
+            BasicColumn::InstanceID => self.instance.instance_id.cmp(&other.instance.instance_id),
+            BasicColumn::Region => self.region.name().cmp(&other.region.name()),
+            BasicColumn::Architecture => self.instance.architecture.cmp(&other.instance.architecture),
+            BasicColumn::VpcID => self.instance.vpc_id.cmp(&other.instance.vpc_id),
+            BasicColumn::Type => self.instance.instance_type.cmp(&other.instance.instance_type),
+            BasicColumn::Key => self.instance.key_name.cmp(&other.instance.key_name),
+            BasicColumn::State => self.instance.key_name.cmp(&other.instance.key_name),
+            BasicColumn::PublicIp => self.instance.public_ip_address.cmp(&other.instance.public_ip_address),
+            BasicColumn::PrivateIp => self.instance.private_ip_address.cmp(&other.instance.private_ip_address),
         }
     }
 }
 
 fn get_instances_with_region(
     profile: &str,
-    region: &Region,
+    regions: Vec<Region>,
 ) -> Result<Vec<Instance>, Box<dyn Error>> {
-    let client = new_ec2client(&region, profile)?;
-
-    let req: DescribeInstancesRequest = ec2_describe_input();
-
     let mut instances: Vec<Instance> = vec![];
 
-    let mut runtime = tokio::runtime::Runtime::new().unwrap();
+    for region in regions.iter() {
+        let client = new_ec2client(region, profile)?;
 
-    let ft = client.describe_instances(req);
+        let req: DescribeInstancesRequest = ec2_describe_input();
 
-    let response = runtime.block_on(ft)?;
-    if let Some(reservations) = response.reservations {
-        for reservation in reservations {
-            if let Some(res_instances) = reservation.instances {
-                for instance in res_instances {
-                    instances.push(instance);
+        let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+        let ft = client.describe_instances(req);
+
+        let response = runtime.block_on(ft)?;
+        if let Some(reservations) = response.reservations {
+            for reservation in reservations {
+                if let Some(res_instances) = reservation.instances {
+                    for instance in res_instances {
+                        instances.push(Instance{
+                            instance: instance,
+                            region: region.clone(),
+                        });
+                    }
                 }
             }
         }
@@ -171,7 +184,7 @@ fn get_instances_with_region(
 #[clap(version = built_info::PKG_VERSION, author = built_info::PKG_AUTHORS)]
 struct Opts {
     #[clap(short, long)]
-    region: Option<String>,
+    region: Vec<String>,
 
     #[clap(short, long)]
     profile: Option<String>,
@@ -196,6 +209,7 @@ impl Header for BasicColumn {
             BasicColumn::Name => (40 * w) / 160,
             BasicColumn::Architecture => 8,
             BasicColumn::VpcID => 22,
+            BasicColumn::Region => 12,
             BasicColumn::Type => 12,
             BasicColumn::Key => (20 * w) / 160,
             BasicColumn::State => 10,
@@ -210,6 +224,7 @@ impl Header for BasicColumn {
             BasicColumn::Name => "name".to_string(),
             BasicColumn::Architecture => "arch".to_string(),
             BasicColumn::VpcID => "vpc-id".to_string(),
+            BasicColumn::Region => "region".to_string(),
             BasicColumn::Type => "type".to_string(),
             BasicColumn::Key => "key".to_string(),
             BasicColumn::State => "state".to_string(),
@@ -231,9 +246,17 @@ fn run() {
 
     cursive::logger::init();
 
-    let region = match opts.region {
-        Some(name) => Region::from_str(&name).unwrap(),
-        None => Region::default(),
+    let regions: Vec<Region> = {
+        if opts.region.len() == 0 {
+            let regions: Vec<Region> = [Region::default()].to_vec();
+            regions
+        } else {
+            opts.region.iter().flat_map(|r| {
+                r.split(",")
+            }).map(|r| {
+                Region::from_str(&r).unwrap()
+            }).collect()
+        }
     };
 
     let profile = match opts.profile {
@@ -241,7 +264,7 @@ fn run() {
         None => "default".to_string(),
     };
 
-    let instances = match get_instances_with_region(&profile, &region) {
+    let instances = match get_instances_with_region(&profile, regions.clone()) {
         Ok(instances) => instances,
         Err(err) => {
             eprintln!("Could not retrieve instances\n\n{}", err);
@@ -251,10 +274,10 @@ fn run() {
 
     let mut siv = cursive_new();
 
-    let mut rv = ReturnValues::new();
+    let mut rv = ReturnValues::default();
     rv.profile = profile;
     rv.instances = instances.clone();
-    rv.region = region.clone();
+    rv.regions = regions.clone();
     rv.dry_run = !opts.disable_dry_run;
 
     siv.set_user_data::<ReturnValues>(rv);
@@ -271,6 +294,7 @@ fn run() {
         .column(BasicColumn::InstanceID)
         .column(BasicColumn::Name)
         .column(BasicColumn::Architecture)
+        .column(BasicColumn::Region)
         .column(BasicColumn::VpcID)
         .column(BasicColumn::Type)
         .column(BasicColumn::Key)
@@ -290,7 +314,7 @@ fn run() {
 
     layout.add_child(iv.with_name("instances"));
 
-    let bottom_bar = BottomBarView::new(&"".to_string(), &region).with_name("bottom_bar");
+    let bottom_bar = BottomBarView::new(&"".to_string(), regions.clone()).with_name("bottom_bar");
 
     layout.add_child(bottom_bar);
 
@@ -326,7 +350,7 @@ fn run() {
                 if let Some(instance) = table.item() {
                     let ud = s.user_data::<ReturnValues>().unwrap();
 
-                    if connect(instance, &ud.profile, &ud.region).is_err() {
+                    if connect(instance, &ud.profile).is_err() {
                         let d = Dialog::around(TextView::new("Not running within tmux."))
                             .title("Error")
                             .button("Cancel", |s| {
@@ -353,7 +377,7 @@ fn run() {
 
 struct ReturnValues {
     profile: String,
-    region: Region,
+    regions: Vec<Region>,
     search: String,
     search_found: bool,
     searching: bool,
@@ -363,11 +387,11 @@ struct ReturnValues {
     dry_run: bool,
 }
 
-impl ReturnValues {
-    pub fn new() -> Self {
+impl Default for ReturnValues {
+    fn default() -> Self {
         Self {
             profile: "".to_string(),
-            region: Region::default(),
+            regions: vec![Region::default()],
             search: "".to_string(),
             searching: false,
             search_found: false,
@@ -400,9 +424,10 @@ fn on_filter(s: &mut Cursive) {
             .clone()
             .into_iter()
             .filter(|i| {
-                find_tag("Name".to_string(), i.tags.clone())
+                find_tag("Name".to_string(), i.instance.tags.clone())
                     .unwrap()
-                    .contains(ss)
+                    .contains(ss) ||
+                    i.region.name().contains(ss)
             })
             .collect();
 
@@ -491,7 +516,7 @@ fn on_search(s: &mut Cursive) {
         let instances = table.items();
 
         match instances.iter().position(|i| {
-            find_tag("Name".to_string(), i.tags.clone())
+            find_tag("Name".to_string(), i.instance.tags.clone())
                 .unwrap()
                 .to_lowercase()
                 .contains(&ss.to_lowercase())
@@ -524,14 +549,14 @@ fn on_search(s: &mut Cursive) {
         let selected_row = table.selected_item().unwrap();
 
         if let Some(idx) = instances.iter().skip(selected_row + 1).position(|i| {
-            find_tag("Name".to_string(), i.tags.clone())
+            find_tag("Name".to_string(), i.instance.tags.clone())
                 .unwrap()
                 .to_lowercase()
                 .contains(&ss.to_lowercase())
         }) {
             table.set_selected_item(idx + selected_row + 1);
         } else if let Some(idx) = instances.iter().position(|i| {
-            find_tag("Name".to_string(), i.tags.clone())
+            find_tag("Name".to_string(), i.instance.tags.clone())
                 .unwrap()
                 .to_lowercase()
                 .contains(&ss.to_lowercase())
@@ -572,24 +597,24 @@ fn update_bottom_bar(s: &mut Cursive) {
         bottom_bar
             .set_content(&ud.search.clone())
             .set_valid(ud.search_found)
-            .set_region(&ud.region)
+            .set_region(ud.regions.clone())
             .set_profile(&ud.profile)
             .set_type(BottomBarType::Search);
     } else if ud.filtering {
         bottom_bar
             .set_content(&ud.filter.clone())
-            .set_region(&ud.region)
+            .set_region(ud.regions.clone())
             .set_profile(&ud.profile)
             .set_type(BottomBarType::Filter);
     } else {
         bottom_bar
-            .set_region(&ud.region)
+            .set_region(ud.regions.clone())
             .set_profile(&ud.profile)
             .set_type(BottomBarType::Standard);
     }
 }
 
-fn connect(instance: &Instance, profile: &str, region: &Region) -> Result<(), Box<dyn Error>> {
+fn connect(instance: &Instance, profile: &str) -> Result<(), Box<dyn Error>> {
     env::var("TMUX")?;
 
     Command::new("tmux")
@@ -597,7 +622,7 @@ fn connect(instance: &Instance, profile: &str, region: &Region) -> Result<(), Bo
         .arg("-h")
         .arg("bash")
         .arg("-c")
-        .arg(format!(r#"aws ssm start-session --profile "{:?}" --region "{:?}" --target "{:}"; read -n 1 -s -r -p "Press any key to continue""#, profile, region.name(), instance.instance_id.clone().unwrap()))
+        .arg(format!(r#"aws ssm start-session --profile "{:?}" --region "{:?}" --target "{:}"; read -n 1 -s -r -p "Press any key to continue""#, profile, instance.region.name(), instance.instance.instance_id.clone().unwrap()))
         .output()?;
 
     Ok(())
@@ -610,7 +635,7 @@ fn refresh(s: &mut Cursive) {
 
     let ud = s.user_data::<ReturnValues>().unwrap();
 
-    match get_instances_with_region(&ud.profile, &ud.region) {
+    match get_instances_with_region(&ud.profile, ud.regions.clone()) {
         Ok(instances) => {
             ud.instances = instances.clone();
 
@@ -618,7 +643,7 @@ fn refresh(s: &mut Cursive) {
                 instances
                     .into_iter()
                     .filter(|i| {
-                        find_tag("Name".to_string(), i.tags.clone())
+                        find_tag("Name".to_string(), i.instance.tags.clone())
                             .unwrap()
                             .contains(&ud.filter)
                     })
@@ -662,14 +687,13 @@ fn new_ec2client(
 }
 
 fn get_instance_log(
-    region: &Region,
     profile: &str,
     instance: &Instance,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let client = new_ec2client(&region, &profile)?;
+    let client = new_ec2client(&instance.region, &profile)?;
 
     let req = rusoto_ec2::GetConsoleOutputRequest {
-        instance_id: instance.instance_id.clone().unwrap(),
+        instance_id: instance.instance.instance_id.clone().unwrap(),
         ..Default::default()
     };
 
@@ -689,7 +713,7 @@ fn get_instance_log(
 fn instance_log(siv: &mut Cursive, instance: &Instance) {
     let ud = siv.user_data::<ReturnValues>().unwrap();
 
-    match get_instance_log(&ud.region, &ud.profile, &instance) {
+    match get_instance_log(&ud.profile, &instance) {
         Ok(buf) => {
             let mut dl = LinearLayout::new(Orientation::Vertical);
 
@@ -698,7 +722,7 @@ fn instance_log(siv: &mut Cursive, instance: &Instance) {
             let dialog_title = TextView::new(format!(
                 "{} ({:})",
                 built_info::PKG_NAME,
-                instance.instance_id.unwrap()
+                instance.instance.instance_id.unwrap()
             ))
             .h_align(HAlign::Center)
             .with_name("title");
@@ -750,7 +774,7 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
     let dialog_title = TextView::new(format!(
         "{} ({:})",
         built_info::PKG_NAME,
-        instance.instance_id.clone().unwrap()
+        instance.instance.instance_id.clone().unwrap()
     ))
     .h_align(HAlign::Center)
     .with_name("title");
@@ -759,85 +783,85 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
 
     let canvas = Canvas::new(instance).with_draw(|instance, printer| {
         let x = [
-            ("instance-id", &instance.instance_id.clone().unwrap()),
+            ("instance-id", &instance.instance.instance_id.clone().unwrap()),
             (
                 "name",
-                &find_tag("name".to_string(), instance.tags.clone())
+                &find_tag("name".to_string(), instance.instance.tags.clone())
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "architecture",
-                &instance
+                &instance.instance
                     .architecture
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "vpc-id",
-                &instance.vpc_id.clone().unwrap_or_else(|| "".to_string()),
+                &instance.instance.vpc_id.clone().unwrap_or_else(|| "".to_string()),
             ),
             (
                 "subnet_type",
-                &instance.subnet_id.clone().unwrap_or_else(|| "".to_string()),
+                &instance.instance.subnet_id.clone().unwrap_or_else(|| "".to_string()),
             ),
             (
                 "instance_type",
-                &instance
+                &instance.instance
                     .instance_type
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "key_name",
-                &instance.key_name.clone().unwrap_or_else(|| "".to_string()),
+                &instance.instance.key_name.clone().unwrap_or_else(|| "".to_string()),
             ),
-            ("state", &instance.state.clone().unwrap().name.unwrap()),
+            ("state", &instance.instance.state.clone().unwrap().name.unwrap()),
             (
                 "public ip",
-                &instance
+                &instance.instance
                     .public_ip_address
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "public dns",
-                &instance
+                &instance.instance
                     .public_dns_name
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "private ip",
-                &instance
+                &instance.instance
                     .private_ip_address
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "private dns",
-                &instance
+                &instance.instance
                     .private_dns_name
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "placement",
-                &instance.placement.clone().unwrap().group_name.unwrap(),
+                &instance.instance.placement.clone().unwrap().group_name.unwrap(),
             ),
             (
                 "lifecycle",
-                &instance
+                &instance.instance
                     .instance_lifecycle
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "image-id",
-                &instance.image_id.clone().unwrap_or_else(|| "".to_string()),
+                &instance.instance.image_id.clone().unwrap_or_else(|| "".to_string()),
             ),
             (
                 "ramdisk-id",
-                &instance
+                &instance.instance
                     .ramdisk_id
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
@@ -846,17 +870,17 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
                 "root device",
                 &format!(
                     "{:} ({:})",
-                    &instance
+                    &instance.instance
                         .root_device_name
                         .clone()
                         .unwrap_or_else(|| "".to_string()),
-                    &instance
+                    &instance.instance
                         .root_device_type
                         .clone()
                         .unwrap_or_else(|| "".to_string()),
                 ),
             ),
-            ("state", &instance.state.clone().unwrap().name.unwrap()),
+            ("state", &instance.instance.state.clone().unwrap().name.unwrap()),
             //("state-reason", &instance.state_reason.clone().unwrap().message.unwrap()),
         ];
 
@@ -876,7 +900,7 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
         );
         y += 1;
 
-        let security_groups = instance.security_groups.clone();
+        let security_groups = instance.instance.security_groups.clone();
 
         for sg in security_groups.unwrap().iter() {
             printer.print(
@@ -899,7 +923,7 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
         );
         y += 1;
 
-        let network_interfaces = instance.network_interfaces.clone();
+        let network_interfaces = instance.instance.network_interfaces.clone();
         for sg in network_interfaces.unwrap().iter() {
             printer.print(
                 (0, y),
@@ -976,7 +1000,7 @@ fn action(s: &mut Cursive) {
 
         let ud = s.user_data::<ReturnValues>().unwrap();
 
-        let client = new_ec2client(&ud.region, &ud.profile);
+        let client = new_ec2client(&instance.unwrap().region, &ud.profile);
         if client.is_err() {
             return;
         };
@@ -986,7 +1010,7 @@ fn action(s: &mut Cursive) {
             Actions::Start => {
                 let req = StartInstancesRequest {
                     dry_run: Some(ud.dry_run),
-                    instance_ids: [instance.unwrap().instance_id.clone().unwrap()].to_vec(),
+                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()].to_vec(),
                     ..Default::default()
                 };
 
@@ -1023,7 +1047,7 @@ fn action(s: &mut Cursive) {
             Actions::Stop => {
                 let req = StopInstancesRequest {
                     dry_run: Some(ud.dry_run),
-                    instance_ids: [instance.unwrap().instance_id.clone().unwrap()].to_vec(),
+                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()].to_vec(),
                     ..Default::default()
                 };
 
@@ -1060,7 +1084,7 @@ fn action(s: &mut Cursive) {
             Actions::Reboot => {
                 let req = RebootInstancesRequest {
                     dry_run: Some(ud.dry_run),
-                    instance_ids: [instance.unwrap().instance_id.clone().unwrap()].to_vec(),
+                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()].to_vec(),
                     //..Default::default()
                 };
 
@@ -1116,7 +1140,7 @@ fn action(s: &mut Cursive) {
             .h_align(HAlign::Center)
             .title(format!(
                 "Action ({})",
-                &instance.instance_id.clone().unwrap()
+                &instance.instance.instance_id.clone().unwrap()
             ))
             .button("Cancel", |s| {
                 s.pop_layer();
@@ -1161,9 +1185,11 @@ fn change_region(s: &mut Cursive) {
 
     let ud = s.user_data::<ReturnValues>().unwrap();
 
+    // TODO: change to support multi checkbox, need modified select view
+    // currently defaulting to first
     let idx = &select
         .iter()
-        .position(|item| item.0 == ud.region.name())
+        .position(|item| item.0 == ud.regions[0].name())
         .unwrap();
 
     let mut select = select.selected(*idx);
@@ -1173,12 +1199,12 @@ fn change_region(s: &mut Cursive) {
 
         let ud = s.user_data::<ReturnValues>().unwrap();
 
-        if ud.region.name() == name {
+        if ud.regions[0].name() == name {
             s.pop_layer();
             return;
         }
 
-        match get_instances_with_region(&ud.profile, &region) {
+        match get_instances_with_region(&ud.profile, [region.clone()].to_vec()) {
             Ok(instances) => {
                 let mut iv = s
                     .find_name::<InstancesView<Instance, BasicColumn>>("instances")
@@ -1186,7 +1212,7 @@ fn change_region(s: &mut Cursive) {
                 iv.set_instances(instances.clone());
 
                 s.with_user_data(|v: &mut ReturnValues| {
-                    v.region = region.clone();
+                    v.regions = [region.clone()].to_vec();
                     v.instances = instances;
                 });
 

@@ -21,12 +21,12 @@ pub struct BottomBarView {
     s: String,
     valid: bool,
     profile: String,
-    r: Region,
+    r: Vec<Region>,
     type_: BottomBarType,
 }
 
 impl BottomBarView {
-    pub fn new(s: &str, r: &Region) -> Self {
+    pub fn new(s: &str, r: Vec<Region>) -> Self {
         BottomBarView {
             s: s.to_string(),
             valid: true,
@@ -48,7 +48,7 @@ impl BottomBarView {
         self
     }
 
-    pub fn set_region(&mut self, r: &Region) -> &mut Self {
+    pub fn set_region(&mut self, r: Vec<Region>) -> &mut Self {
         self.r = r.clone();
 
         self
@@ -244,7 +244,9 @@ impl View for BottomBarView {
         printer.with_color(
             ColorStyle::new(Color::Rgb(0, 0, 0), Color::Rgb(145, 198, 194)),
             |printer| {
-                let s = format!("{} ({})", &self.r.name(), &self.profile);
+                let regions: Vec<&str> = self.r.iter().map(|r|r.name()).collect();
+
+                let s = format!("{} ({})", regions.join(","), &self.profile);
                 printer.print((printer.size.x - s.len() - 1, 0), &s);
             },
         );
