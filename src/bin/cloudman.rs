@@ -477,7 +477,7 @@ fn on_filter(s: &mut Cursive) {
             .into_iter()
             .filter(|i| {
                 find_tag("Name".to_string(), i.instance.tags.clone())
-                    .unwrap()
+                    .unwrap_or_default()
                     .contains(ss)
                     || i.region.name().contains(ss)
                     || i.profile.contains(ss)
@@ -570,7 +570,7 @@ fn on_search(s: &mut Cursive) {
 
         match instances.iter().position(|i| {
             find_tag("Name".to_string(), i.instance.tags.clone())
-                .unwrap()
+                .unwrap_or_default()
                 .to_lowercase()
                 .contains(&ss.to_lowercase())
         }) {
