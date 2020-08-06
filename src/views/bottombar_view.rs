@@ -20,7 +20,7 @@ pub enum BottomBarType {
 pub struct BottomBarView {
     s: String,
     valid: bool,
-    profile: String,
+    profiles: Vec<String>,
     r: Vec<Region>,
     type_: BottomBarType,
 }
@@ -30,7 +30,7 @@ impl BottomBarView {
         BottomBarView {
             s: s.to_string(),
             valid: true,
-            profile: "".to_string(),
+            profiles: ["".to_string()].to_vec(),
             r: r.clone(),
             type_: BottomBarType::Standard,
         }
@@ -42,14 +42,14 @@ impl BottomBarView {
         self
     }
 
-    pub fn set_profile(&mut self, p: &str) -> &mut Self {
-        self.profile = p.to_string();
+    pub fn set_profile(&mut self, p: Vec<String>) -> &mut Self {
+        self.profiles = p;
 
         self
     }
 
     pub fn set_region(&mut self, r: Vec<Region>) -> &mut Self {
-        self.r = r.clone();
+        self.r = r;
 
         self
     }
@@ -245,8 +245,9 @@ impl View for BottomBarView {
             ColorStyle::new(Color::Rgb(0, 0, 0), Color::Rgb(145, 198, 194)),
             |printer| {
                 let regions: Vec<&str> = self.r.iter().map(|r|r.name()).collect();
+                let profiles: Vec<&str> = self.profiles.iter().map(|r|&r[..]).collect();
 
-                let s = format!("{} ({})", regions.join(","), &self.profile);
+                let s = format!("{} ({})", regions.join(","), profiles.join(","));
                 printer.print((printer.size.x - s.len() - 1, 0), &s);
             },
         );

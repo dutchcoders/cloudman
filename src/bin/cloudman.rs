@@ -50,6 +50,7 @@ enum BasicColumn {
     Name,
     Architecture,
     Region,
+    Profile,
     VpcID,
     Type,
     Key,
@@ -69,6 +70,7 @@ enum Actions {
 #[derive(Clone, PartialEq)]
 pub struct Instance {
     instance: rusoto_ec2::Instance,
+    profile: String,
     region: Region,
 }
 fn find_tag(key: String, tags: Option<Vec<Tag>>) -> Option<String> {
@@ -105,6 +107,7 @@ impl TableViewItem<BasicColumn> for Instance {
                 find_tag("name".to_string(), self.instance.tags.clone()).unwrap_or_else(|| "".to_string())
             }
             BasicColumn::Region => self.region.clone().name().to_string(),
+            BasicColumn::Profile => self.profile.to_string(),
             BasicColumn::Architecture => {
                 self.instance.architecture.clone().unwrap_or_else(|| "".to_string())
             }
@@ -136,6 +139,7 @@ impl TableViewItem<BasicColumn> for Instance {
             BasicColumn::Name => self.instance.instance_id.cmp(&other.instance.instance_id),
             BasicColumn::InstanceID => self.instance.instance_id.cmp(&other.instance.instance_id),
             BasicColumn::Region => self.region.name().cmp(&other.region.name()),
+            BasicColumn::Profile => self.profile.cmp(&other.profile),
             BasicColumn::Architecture => self.instance.architecture.cmp(&other.instance.architecture),
             BasicColumn::VpcID => self.instance.vpc_id.cmp(&other.instance.vpc_id),
             BasicColumn::Type => self.instance.instance_type.cmp(&other.instance.instance_type),
@@ -147,30 +151,33 @@ impl TableViewItem<BasicColumn> for Instance {
     }
 }
 
+// TODO: add parallel loading of multiple envs
 fn get_instances_with_region(
-    profile: &str,
+    profiles: Vec<String>,
     regions: Vec<Region>,
 ) -> Result<Vec<Instance>, Box<dyn Error>> {
+    let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
     let mut instances: Vec<Instance> = vec![];
+    for profile in profiles.iter() {
+        for region in regions.iter() {
+            let client = new_ec2client(region, profile)?;
 
-    for region in regions.iter() {
-        let client = new_ec2client(region, profile)?;
+            let req: DescribeInstancesRequest = ec2_describe_input();
 
-        let req: DescribeInstancesRequest = ec2_describe_input();
+            let ft = client.describe_instances(req);
 
-        let mut runtime = tokio::runtime::Runtime::new().unwrap();
-
-        let ft = client.describe_instances(req);
-
-        let response = runtime.block_on(ft)?;
-        if let Some(reservations) = response.reservations {
-            for reservation in reservations {
-                if let Some(res_instances) = reservation.instances {
-                    for instance in res_instances {
-                        instances.push(Instance{
-                            instance: instance,
-                            region: region.clone(),
-                        });
+            let response = runtime.block_on(ft)?;
+            if let Some(reservations) = response.reservations {
+                for reservation in reservations {
+                    if let Some(res_instances) = reservation.instances {
+                        for instance in res_instances {
+                            instances.push(Instance{
+                                instance: instance,
+                                region: region.clone(),
+                                profile: profile.clone(),
+                            });
+                        }
                     }
                 }
             }
@@ -187,7 +194,7 @@ struct Opts {
     region: Vec<String>,
 
     #[clap(short, long)]
-    profile: Option<String>,
+    profile: Vec<String>,
 
     #[clap(long)]
     disable_dry_run: bool,
@@ -209,6 +216,7 @@ impl Header for BasicColumn {
             BasicColumn::Name => (40 * w) / 160,
             BasicColumn::Architecture => 8,
             BasicColumn::VpcID => 22,
+            BasicColumn::Profile => 12,
             BasicColumn::Region => 12,
             BasicColumn::Type => 12,
             BasicColumn::Key => (20 * w) / 160,
@@ -224,6 +232,7 @@ impl Header for BasicColumn {
             BasicColumn::Name => "name".to_string(),
             BasicColumn::Architecture => "arch".to_string(),
             BasicColumn::VpcID => "vpc-id".to_string(),
+            BasicColumn::Profile => "profile".to_string(),
             BasicColumn::Region => "region".to_string(),
             BasicColumn::Type => "type".to_string(),
             BasicColumn::Key => "key".to_string(),
@@ -259,12 +268,20 @@ fn run() {
         }
     };
 
-    let profile = match opts.profile {
-        Some(name) => name,
-        None => "default".to_string(),
+    let profiles: Vec<String> = {
+        if opts.profile.len() == 0 {
+            let profiles: Vec<String> = ["default".to_string()].to_vec();
+            profiles
+        } else {
+            opts.profile.iter().flat_map(|r| {
+                r.split(",")
+            }).map(|r| {
+                r.to_string()
+            }).collect()
+        }
     };
 
-    let instances = match get_instances_with_region(&profile, regions.clone()) {
+    let instances = match get_instances_with_region(profiles.clone(), regions.clone()) {
         Ok(instances) => instances,
         Err(err) => {
             eprintln!("Could not retrieve instances\n\n{}", err);
@@ -275,7 +292,7 @@ fn run() {
     let mut siv = cursive_new();
 
     let mut rv = ReturnValues::default();
-    rv.profile = profile;
+    rv.profiles = profiles;
     rv.instances = instances.clone();
     rv.regions = regions.clone();
     rv.dry_run = !opts.disable_dry_run;
@@ -295,6 +312,7 @@ fn run() {
         .column(BasicColumn::Name)
         .column(BasicColumn::Architecture)
         .column(BasicColumn::Region)
+        .column(BasicColumn::Profile)
         .column(BasicColumn::VpcID)
         .column(BasicColumn::Type)
         .column(BasicColumn::Key)
@@ -348,9 +366,7 @@ fn run() {
                     .unwrap();
 
                 if let Some(instance) = table.item() {
-                    let ud = s.user_data::<ReturnValues>().unwrap();
-
-                    if connect(instance, &ud.profile).is_err() {
+                    if connect(instance).is_err() {
                         let d = Dialog::around(TextView::new("Not running within tmux."))
                             .title("Error")
                             .button("Cancel", |s| {
@@ -376,7 +392,7 @@ fn run() {
 }
 
 struct ReturnValues {
-    profile: String,
+    profiles: Vec<String>,
     regions: Vec<Region>,
     search: String,
     search_found: bool,
@@ -390,7 +406,7 @@ struct ReturnValues {
 impl Default for ReturnValues {
     fn default() -> Self {
         Self {
-            profile: "".to_string(),
+            profiles: vec!["default".to_string()],
             regions: vec![Region::default()],
             search: "".to_string(),
             searching: false,
@@ -427,7 +443,8 @@ fn on_filter(s: &mut Cursive) {
                 find_tag("Name".to_string(), i.instance.tags.clone())
                     .unwrap()
                     .contains(ss) ||
-                    i.region.name().contains(ss)
+                    i.region.name().contains(ss) ||
+                    i.profile.contains(ss)
             })
             .collect();
 
@@ -598,23 +615,23 @@ fn update_bottom_bar(s: &mut Cursive) {
             .set_content(&ud.search.clone())
             .set_valid(ud.search_found)
             .set_region(ud.regions.clone())
-            .set_profile(&ud.profile)
+            .set_profile(ud.profiles.clone())
             .set_type(BottomBarType::Search);
     } else if ud.filtering {
         bottom_bar
             .set_content(&ud.filter.clone())
             .set_region(ud.regions.clone())
-            .set_profile(&ud.profile)
+            .set_profile(ud.profiles.clone())
             .set_type(BottomBarType::Filter);
     } else {
         bottom_bar
             .set_region(ud.regions.clone())
-            .set_profile(&ud.profile)
+            .set_profile(ud.profiles.clone())
             .set_type(BottomBarType::Standard);
     }
 }
 
-fn connect(instance: &Instance, profile: &str) -> Result<(), Box<dyn Error>> {
+fn connect(instance: &Instance) -> Result<(), Box<dyn Error>> {
     env::var("TMUX")?;
 
     Command::new("tmux")
@@ -622,7 +639,7 @@ fn connect(instance: &Instance, profile: &str) -> Result<(), Box<dyn Error>> {
         .arg("-h")
         .arg("bash")
         .arg("-c")
-        .arg(format!(r#"aws ssm start-session --profile "{:?}" --region "{:?}" --target "{:}"; read -n 1 -s -r -p "Press any key to continue""#, profile, instance.region.name(), instance.instance.instance_id.clone().unwrap()))
+        .arg(format!(r#"aws ssm start-session --profile "{:?}" --region "{:?}" --target "{:}"; read -n 1 -s -r -p "Press any key to continue""#, &instance.profile, instance.region.name(), instance.instance.instance_id.clone().unwrap()))
         .output()?;
 
     Ok(())
@@ -635,7 +652,7 @@ fn refresh(s: &mut Cursive) {
 
     let ud = s.user_data::<ReturnValues>().unwrap();
 
-    match get_instances_with_region(&ud.profile, ud.regions.clone()) {
+    match get_instances_with_region(ud.profiles.clone(), ud.regions.clone()) {
         Ok(instances) => {
             ud.instances = instances.clone();
 
@@ -687,10 +704,9 @@ fn new_ec2client(
 }
 
 fn get_instance_log(
-    profile: &str,
     instance: &Instance,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    let client = new_ec2client(&instance.region, &profile)?;
+    let client = new_ec2client(&instance.region, &instance.profile)?;
 
     let req = rusoto_ec2::GetConsoleOutputRequest {
         instance_id: instance.instance.instance_id.clone().unwrap(),
@@ -711,9 +727,7 @@ fn get_instance_log(
 }
 
 fn instance_log(siv: &mut Cursive, instance: &Instance) {
-    let ud = siv.user_data::<ReturnValues>().unwrap();
-
-    match get_instance_log(&ud.profile, &instance) {
+    match get_instance_log(&instance) {
         Ok(buf) => {
             let mut dl = LinearLayout::new(Orientation::Vertical);
 
@@ -1000,7 +1014,7 @@ fn action(s: &mut Cursive) {
 
         let ud = s.user_data::<ReturnValues>().unwrap();
 
-        let client = new_ec2client(&instance.unwrap().region, &ud.profile);
+        let client = new_ec2client(&instance.unwrap().region, &instance.unwrap().profile);
         if client.is_err() {
             return;
         };
@@ -1204,7 +1218,7 @@ fn change_region(s: &mut Cursive) {
             return;
         }
 
-        match get_instances_with_region(&ud.profile, [region.clone()].to_vec()) {
+        match get_instances_with_region(ud.profiles.clone(), [region.clone()].to_vec()) {
             Ok(instances) => {
                 let mut iv = s
                     .find_name::<InstancesView<Instance, BasicColumn>>("instances")
