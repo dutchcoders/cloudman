@@ -289,7 +289,7 @@ fn run() {
     cursive::logger::init();
 
     let regions: Vec<Region> = {
-        if opts.region.len() == 0 {
+        if opts.region.is_empty() {
             let regions: Vec<Region> = [Region::default()].to_vec();
             regions
         } else {
@@ -302,7 +302,7 @@ fn run() {
     };
 
     let profiles: Vec<String> = {
-        if opts.profile.len() == 0 {
+        if opts.profile.is_empty() {
             let profiles: Vec<String> = ["default".to_string()].to_vec();
             profiles
         } else {
