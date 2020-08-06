@@ -223,16 +223,16 @@ fn get_instances_with_region(
 #[derive(Clap)]
 #[clap(version = built_info::PKG_VERSION, author = built_info::PKG_AUTHORS)]
 struct Opts {
-    #[clap(short, long)]
+    #[clap(short, long, about("One or more regions to use"))]
     region: Vec<String>,
 
-    #[clap(short, long)]
+    #[clap(short, long, about("One or more profiles to use"))]
     profile: Vec<String>,
 
-    #[clap(long)]
+    #[clap(long, about("Disable dry run"))]
     disable_dry_run: bool,
 
-    #[clap(long)]
+    #[clap(long, about("Usen environment credentials"))]
     use_env: bool,
 }
 

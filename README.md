@@ -21,20 +21,21 @@ The profiles and defaults as configured in ~/.aws/credentials will be used.
 Cloudman can be started optionally with a region and profile to use. 
 
 ```
-cloudman-rs 0.1.0
+cloudman-rs 0.1.3
 Remco Verhoef <remco@dutchcoders.io>
 
 USAGE:
-    cloudman [OPTIONS]
+    cloudman [FLAGS] [OPTIONS]
 
 FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+        --disable-dry-run    Disable dry run
+    -h, --help               Prints help information
+        --use-env            Usen environment credentials
+    -V, --version            Prints version information
 
 OPTIONS:
-    -p, --profile <profile>
-    -r, --region <region>
-
+    -p, --profile <profile>...    One or more profiles to use
+    -r, --region <region>...      One or more regions to use
 ```
 
 ## Shortcuts
