@@ -244,8 +244,8 @@ impl View for BottomBarView {
         printer.with_color(
             ColorStyle::new(Color::Rgb(0, 0, 0), Color::Rgb(145, 198, 194)),
             |printer| {
-                let regions: Vec<&str> = self.r.iter().map(|r|r.name()).collect();
-                let profiles: Vec<&str> = self.profiles.iter().map(|r|&r[..]).collect();
+                let regions: Vec<&str> = self.r.iter().map(|r| r.name()).collect();
+                let profiles: Vec<&str> = self.profiles.iter().map(|r| &r[..]).collect();
 
                 let s = format!("{} ({})", regions.join(","), profiles.join(","));
                 printer.print((printer.size.x - s.len() - 1, 0), &s);

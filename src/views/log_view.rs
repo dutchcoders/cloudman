@@ -41,7 +41,7 @@ impl View for LogView {
             let lines = self.lines.clone();
 
             // ignore the first line, as it is incomplete
-            if let Some(line) = lines.get(i+1) {
+            if let Some(line) = lines.get(i + 1) {
                 printer.print((0, 0), line);
             } else {
                 printer.print((0, 0), "⍇");
@@ -54,7 +54,7 @@ impl View for LogView {
 
         let h = std::cmp::max(lines.len(), constraint.y);
 
-        self.scrollbase.set_heights(constraint.y, h+1);
+        self.scrollbase.set_heights(constraint.y, h + 1);
 
         constraint
     }

@@ -23,8 +23,8 @@ use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
 use rusoto_core::Region::*;
 use rusoto_ec2::{
-    DescribeInstancesRequest, Ec2, Ec2Client, RebootInstancesRequest,
-    StartInstancesRequest, StopInstancesRequest, Tag,
+    DescribeInstancesRequest, Ec2, Ec2Client, RebootInstancesRequest, StartInstancesRequest,
+    StopInstancesRequest, Tag,
 };
 use std::cmp::Ordering;
 use std::env;
@@ -76,11 +76,13 @@ pub struct Instance {
 fn find_tag(key: String, tags: Option<Vec<Tag>>) -> Option<String> {
     match tags {
         Some(tags) => {
-            match tags.iter()
-                      .find(|t| t.key.clone().unwrap().eq_ignore_ascii_case(&key)) {
-                          Some(tag) => tag.clone().value,
-                          None => None,
-                      }
+            match tags
+                .iter()
+                .find(|t| t.key.clone().unwrap().eq_ignore_ascii_case(&key))
+            {
+                Some(tag) => tag.clone().value,
+                None => None,
+            }
         }
         None => None,
     }
@@ -102,29 +104,49 @@ impl TableViewItem<BasicColumn> for Instance {
 
     fn to_column(&self, column: BasicColumn) -> String {
         match column {
-            BasicColumn::InstanceID => self.instance.instance_id.clone().unwrap_or_else(|| "".to_string()),
-            BasicColumn::Name => {
-                find_tag("name".to_string(), self.instance.tags.clone()).unwrap_or_else(|| "".to_string())
-            }
+            BasicColumn::InstanceID => self
+                .instance
+                .instance_id
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            BasicColumn::Name => find_tag("name".to_string(), self.instance.tags.clone())
+                .unwrap_or_else(|| "".to_string()),
             BasicColumn::Region => self.region.clone().name().to_string(),
             BasicColumn::Profile => self.profile.to_string(),
-            BasicColumn::Architecture => {
-                self.instance.architecture.clone().unwrap_or_else(|| "".to_string())
-            }
-            BasicColumn::VpcID => self.instance.vpc_id.clone().unwrap_or_else(|| "".to_string()),
-            BasicColumn::Type => self.instance.instance_type.clone().unwrap_or_else(|| "".to_string()),
-            BasicColumn::Key => self.instance.key_name.clone().unwrap_or_else(|| "".to_string()),
-            BasicColumn::State => self.instance
+            BasicColumn::Architecture => self
+                .instance
+                .architecture
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            BasicColumn::VpcID => self
+                .instance
+                .vpc_id
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            BasicColumn::Type => self
+                .instance
+                .instance_type
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            BasicColumn::Key => self
+                .instance
+                .key_name
+                .clone()
+                .unwrap_or_else(|| "".to_string()),
+            BasicColumn::State => self
+                .instance
                 .state
                 .clone()
                 .unwrap()
                 .name
                 .unwrap_or_else(|| "".to_string()),
-            BasicColumn::PublicIp => self.instance
+            BasicColumn::PublicIp => self
+                .instance
                 .public_ip_address
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
-            BasicColumn::PrivateIp => self.instance
+            BasicColumn::PrivateIp => self
+                .instance
                 .private_ip_address
                 .clone()
                 .unwrap_or_else(|| "".to_string()),
@@ -140,13 +162,24 @@ impl TableViewItem<BasicColumn> for Instance {
             BasicColumn::InstanceID => self.instance.instance_id.cmp(&other.instance.instance_id),
             BasicColumn::Region => self.region.name().cmp(&other.region.name()),
             BasicColumn::Profile => self.profile.cmp(&other.profile),
-            BasicColumn::Architecture => self.instance.architecture.cmp(&other.instance.architecture),
+            BasicColumn::Architecture => {
+                self.instance.architecture.cmp(&other.instance.architecture)
+            }
             BasicColumn::VpcID => self.instance.vpc_id.cmp(&other.instance.vpc_id),
-            BasicColumn::Type => self.instance.instance_type.cmp(&other.instance.instance_type),
+            BasicColumn::Type => self
+                .instance
+                .instance_type
+                .cmp(&other.instance.instance_type),
             BasicColumn::Key => self.instance.key_name.cmp(&other.instance.key_name),
             BasicColumn::State => self.instance.key_name.cmp(&other.instance.key_name),
-            BasicColumn::PublicIp => self.instance.public_ip_address.cmp(&other.instance.public_ip_address),
-            BasicColumn::PrivateIp => self.instance.private_ip_address.cmp(&other.instance.private_ip_address),
+            BasicColumn::PublicIp => self
+                .instance
+                .public_ip_address
+                .cmp(&other.instance.public_ip_address),
+            BasicColumn::PrivateIp => self
+                .instance
+                .private_ip_address
+                .cmp(&other.instance.private_ip_address),
         }
     }
 }
@@ -172,7 +205,7 @@ fn get_instances_with_region(
                 for reservation in reservations {
                     if let Some(res_instances) = reservation.instances {
                         for instance in res_instances {
-                            instances.push(Instance{
+                            instances.push(Instance {
                                 instance: instance,
                                 region: region.clone(),
                                 profile: profile.clone(),
@@ -260,11 +293,11 @@ fn run() {
             let regions: Vec<Region> = [Region::default()].to_vec();
             regions
         } else {
-            opts.region.iter().flat_map(|r| {
-                r.split(",")
-            }).map(|r| {
-                Region::from_str(&r).unwrap()
-            }).collect()
+            opts.region
+                .iter()
+                .flat_map(|r| r.split(","))
+                .map(|r| Region::from_str(&r).unwrap())
+                .collect()
         }
     };
 
@@ -273,11 +306,11 @@ fn run() {
             let profiles: Vec<String> = ["default".to_string()].to_vec();
             profiles
         } else {
-            opts.profile.iter().flat_map(|r| {
-                r.split(",")
-            }).map(|r| {
-                r.to_string()
-            }).collect()
+            opts.profile
+                .iter()
+                .flat_map(|r| r.split(","))
+                .map(|r| r.to_string())
+                .collect()
         }
     };
 
@@ -442,9 +475,9 @@ fn on_filter(s: &mut Cursive) {
             .filter(|i| {
                 find_tag("Name".to_string(), i.instance.tags.clone())
                     .unwrap()
-                    .contains(ss) ||
-                    i.region.name().contains(ss) ||
-                    i.profile.contains(ss)
+                    .contains(ss)
+                    || i.region.name().contains(ss)
+                    || i.profile.contains(ss)
             })
             .collect();
 
@@ -703,9 +736,7 @@ fn new_ec2client(
     Ok(client)
 }
 
-fn get_instance_log(
-    instance: &Instance,
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn get_instance_log(instance: &Instance) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let client = new_ec2client(&instance.region, &instance.profile)?;
 
     let req = rusoto_ec2::GetConsoleOutputRequest {
@@ -797,7 +828,10 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
 
     let canvas = Canvas::new(instance).with_draw(|instance, printer| {
         let x = [
-            ("instance-id", &instance.instance.instance_id.clone().unwrap()),
+            (
+                "instance-id",
+                &instance.instance.instance_id.clone().unwrap(),
+            ),
             (
                 "name",
                 &find_tag("name".to_string(), instance.instance.tags.clone())
@@ -805,77 +839,110 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
             ),
             (
                 "architecture",
-                &instance.instance
+                &instance
+                    .instance
                     .architecture
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "vpc-id",
-                &instance.instance.vpc_id.clone().unwrap_or_else(|| "".to_string()),
+                &instance
+                    .instance
+                    .vpc_id
+                    .clone()
+                    .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "subnet_type",
-                &instance.instance.subnet_id.clone().unwrap_or_else(|| "".to_string()),
+                &instance
+                    .instance
+                    .subnet_id
+                    .clone()
+                    .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "instance_type",
-                &instance.instance
+                &instance
+                    .instance
                     .instance_type
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "key_name",
-                &instance.instance.key_name.clone().unwrap_or_else(|| "".to_string()),
+                &instance
+                    .instance
+                    .key_name
+                    .clone()
+                    .unwrap_or_else(|| "".to_string()),
             ),
-            ("state", &instance.instance.state.clone().unwrap().name.unwrap()),
+            (
+                "state",
+                &instance.instance.state.clone().unwrap().name.unwrap(),
+            ),
             (
                 "public ip",
-                &instance.instance
+                &instance
+                    .instance
                     .public_ip_address
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "public dns",
-                &instance.instance
+                &instance
+                    .instance
                     .public_dns_name
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "private ip",
-                &instance.instance
+                &instance
+                    .instance
                     .private_ip_address
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "private dns",
-                &instance.instance
+                &instance
+                    .instance
                     .private_dns_name
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "placement",
-                &instance.instance.placement.clone().unwrap().group_name.unwrap(),
+                &instance
+                    .instance
+                    .placement
+                    .clone()
+                    .unwrap()
+                    .group_name
+                    .unwrap(),
             ),
             (
                 "lifecycle",
-                &instance.instance
+                &instance
+                    .instance
                     .instance_lifecycle
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "image-id",
-                &instance.instance.image_id.clone().unwrap_or_else(|| "".to_string()),
+                &instance
+                    .instance
+                    .image_id
+                    .clone()
+                    .unwrap_or_else(|| "".to_string()),
             ),
             (
                 "ramdisk-id",
-                &instance.instance
+                &instance
+                    .instance
                     .ramdisk_id
                     .clone()
                     .unwrap_or_else(|| "".to_string()),
@@ -884,17 +951,22 @@ fn instance_details(siv: &mut Cursive, instance: &Instance) {
                 "root device",
                 &format!(
                     "{:} ({:})",
-                    &instance.instance
+                    &instance
+                        .instance
                         .root_device_name
                         .clone()
                         .unwrap_or_else(|| "".to_string()),
-                    &instance.instance
+                    &instance
+                        .instance
                         .root_device_type
                         .clone()
                         .unwrap_or_else(|| "".to_string()),
                 ),
             ),
-            ("state", &instance.instance.state.clone().unwrap().name.unwrap()),
+            (
+                "state",
+                &instance.instance.state.clone().unwrap().name.unwrap(),
+            ),
             //("state-reason", &instance.state_reason.clone().unwrap().message.unwrap()),
         ];
 
@@ -1024,7 +1096,8 @@ fn action(s: &mut Cursive) {
             Actions::Start => {
                 let req = StartInstancesRequest {
                     dry_run: Some(ud.dry_run),
-                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()].to_vec(),
+                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()]
+                        .to_vec(),
                     ..Default::default()
                 };
 
@@ -1061,7 +1134,8 @@ fn action(s: &mut Cursive) {
             Actions::Stop => {
                 let req = StopInstancesRequest {
                     dry_run: Some(ud.dry_run),
-                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()].to_vec(),
+                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()]
+                        .to_vec(),
                     ..Default::default()
                 };
 
@@ -1098,7 +1172,8 @@ fn action(s: &mut Cursive) {
             Actions::Reboot => {
                 let req = RebootInstancesRequest {
                     dry_run: Some(ud.dry_run),
-                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()].to_vec(),
+                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()]
+                        .to_vec(),
                     //..Default::default()
                 };
 
