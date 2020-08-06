@@ -18,7 +18,7 @@ use cursive::views::{
 };
 use cursive::Cursive;
 use cursive::CursiveExt;
-use rusoto_core::credential::ProfileProvider;
+use rusoto_core::credential::{ProfileProvider,EnvironmentProvider};
 use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
 use rusoto_core::Region::*;
@@ -231,6 +231,9 @@ struct Opts {
 
     #[clap(long)]
     disable_dry_run: bool,
+
+    #[clap(long)]
+    use_env: bool,
 }
 
 fn main() {
@@ -725,15 +728,18 @@ fn new_ec2client(
     region: &rusoto_core::Region,
     profile: &str,
 ) -> Result<rusoto_ec2::Ec2Client, rusoto_core::request::TlsError> {
-    let aws_creds_dir: String =
-        dirs::home_dir().unwrap().to_str().unwrap().to_owned() + "/.aws/credentials";
-    let provider: ProfileProvider = ProfileProvider::with_configuration(aws_creds_dir, profile);
+    let opts: Opts = Opts::parse();
 
     let http_client = HttpClient::new()?;
 
-    let client = Ec2Client::new_with(http_client, provider, region.clone());
-
-    Ok(client)
+    if opts.use_env {
+        let provider = EnvironmentProvider::default();
+        Ok(Ec2Client::new_with(http_client, provider, region.clone()))
+    } else {
+        let aws_creds_dir: String = dirs::home_dir().unwrap().to_str().unwrap().to_owned() + "/.aws/credentials";
+        let provider = ProfileProvider::with_configuration(aws_creds_dir, profile);
+        Ok(Ec2Client::new_with(http_client, provider, region.clone()))
+    }
 }
 
 fn get_instance_log(instance: &Instance) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
