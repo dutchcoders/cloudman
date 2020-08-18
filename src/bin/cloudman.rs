@@ -689,10 +689,10 @@ fn refresh(s: &mut Cursive) {
 
     let ud = s.user_data::<ReturnValues>().unwrap();
 
+    let item = iv.item();
+
     match get_instances_with_region(ud.profiles.clone(), ud.regions.clone()) {
         Ok(instances) => {
-            ud.instances = instances.clone();
-
             let instances: Vec<Instance> = if ud.filter != "" {
                 instances
                     .into_iter()
@@ -706,7 +706,17 @@ fn refresh(s: &mut Cursive) {
                 instances
             };
 
-            iv.set_instances(instances);
+
+            match item {
+                Some(item) => {
+                    let item2 = item.clone();
+                    iv.set_instances(instances);
+                    iv.set_item(&item2);
+                }
+                None => {
+                    iv.set_instances(instances);
+                }
+            }
         }
         Err(err) => {
             let d = Dialog::around(TextView::new(format!(
