@@ -96,7 +96,7 @@ impl TableViewItem<BasicColumn> for Instance {
                 ColorStyle::new(Color::Dark(BaseColor::Green), Color::TerminalDefault)
             }
             BasicColumn::State => match self.instance.state.as_ref().unwrap().code {
-                Some(16) => ColorStyle::new(Color::TerminalDefault, Color::TerminalDefault),
+                Some(16) => ColorStyle::new(Color::Light(BaseColor::Green), Color::TerminalDefault),
                 _ => ColorStyle::new(Color::Light(BaseColor::Red), Color::TerminalDefault),
             },
             _ => ColorStyle::primary(),
