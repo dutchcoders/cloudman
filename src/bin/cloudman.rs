@@ -24,6 +24,7 @@ use rusoto_core::Region;
 use rusoto_core::Region::*;
 use rusoto_ec2::{
     DescribeInstancesRequest, Ec2, Ec2Client, RebootInstancesRequest, StartInstancesRequest,
+    TerminateInstancesRequest,
     StopInstancesRequest, Tag,
 };
 use std::cmp::Ordering;
@@ -63,7 +64,7 @@ enum BasicColumn {
 enum Actions {
     Start,
     Stop,
-
+    Terminate,
     Reboot,
 }
 
@@ -1077,6 +1078,7 @@ fn action(s: &mut Cursive) {
         .autojump()
         .item("start", Actions::Start)
         .item("stop", Actions::Stop)
+        .item("terminate", Actions::Terminate)
         .item("reboot", Actions::Reboot);
 
     fn ok(s: &mut Cursive, action: &Actions) {
@@ -1172,6 +1174,44 @@ fn action(s: &mut Cursive) {
                     Err(err) => {
                         s.pop_layer();
                         error_dialog(s, "Could not stop instance.", &format!("{}", err));
+                    }
+                };
+            }
+            Actions::Terminate => {
+                let req = TerminateInstancesRequest {
+                    dry_run: Some(ud.dry_run),
+                    instance_ids: [instance.unwrap().instance.instance_id.clone().unwrap()]
+                        .to_vec(),
+                    ..Default::default()
+                };
+
+                let ft = client.terminate_instances(req);
+
+                let mut runtime = tokio::runtime::Runtime::new().unwrap();
+
+                match runtime.block_on(ft) {
+                    Ok(_) => {
+                        match s.cb_sink().send(Box::new(|s| {
+                            let d = Dialog::around(TextView::new("The instance will be terminated."))
+                                .title("Stop instance")
+                                .button("Cancel", |s| {
+                                    s.pop_layer();
+                                });
+
+                            let dl = event_view(d);
+
+                            s.add_layer(dl);
+                        })) {
+                            Ok(_) => (),
+                            Err(err) => {
+                                s.pop_layer();
+                                error_dialog(s, "Could not terminate instance.", &format!("{}", err));
+                            }
+                        };
+                    }
+                    Err(err) => {
+                        s.pop_layer();
+                        error_dialog(s, "Could not terminate instance.", &format!("{}", err));
                     }
                 };
             }
