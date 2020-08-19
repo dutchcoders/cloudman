@@ -697,8 +697,8 @@ fn refresh(s: &mut Cursive) {
                 instances
                     .into_iter()
                     .filter(|i| {
-                        find_tag("Name".to_string(), i.instance.tags.clone())
-                            .unwrap()
+                        find_tag("name".to_string(), i.instance.tags.clone())
+                            .unwrap_or_else(|| "".to_string())
                             .contains(&ud.filter)
                     })
                     .collect()
