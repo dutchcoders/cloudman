@@ -604,14 +604,14 @@ fn on_search(s: &mut Cursive) {
 
         if let Some(idx) = instances.iter().skip(selected_row + 1).position(|i| {
             find_tag("Name".to_string(), i.instance.tags.clone())
-                .unwrap()
+                .unwrap_or_default()
                 .to_lowercase()
                 .contains(&ss.to_lowercase())
         }) {
             table.set_selected_item(idx + selected_row + 1);
         } else if let Some(idx) = instances.iter().position(|i| {
             find_tag("Name".to_string(), i.instance.tags.clone())
-                .unwrap()
+                .unwrap_or_default()
                 .to_lowercase()
                 .contains(&ss.to_lowercase())
         }) {
