@@ -479,9 +479,10 @@ fn on_filter(s: &mut Cursive) {
             .filter(|i| {
                 find_tag("Name".to_string(), i.instance.tags.clone())
                     .unwrap_or_default()
-                    .contains(ss)
-                    || i.region.name().contains(ss)
-                    || i.profile.contains(ss)
+                    .to_lowercase()
+                    .contains(&ss.to_lowercase())
+                    || i.region.name().to_lowercase().contains(&ss.to_lowercase())
+                    || i.profile.to_lowercase().contains(&ss.to_lowercase())
             })
             .collect();
 
