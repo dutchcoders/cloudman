@@ -14,7 +14,6 @@ os:
   - osx
 
 rust:
-  - 1.44.0
   - stable
   - nightly
 
@@ -24,17 +23,17 @@ matrix:
     - name: "linux i586 (clippy))"
       os: linux
       env: CLIPPY=true
-      rust: 1.44.0
+      rust: stable
       env: TARGET=i586-unknown-linux-gnu
     - name: "linux x86_64 (clippy))"
       os: linux
       env: CLIPPY=true
-      rust: 1.44.0
+      rust: stable
       env: TARGET=x86_64-unknown-linux-gnu
     - name: "osx x86_64 (clippy)"
       os: osx
       env: CLIPPY=true
-      rust: 1.44.0
+      rust: stable
       env: TARGET=x86_64-apple-darwin
     - if: tag IS present
       name: "linux x86_64 (release)"
