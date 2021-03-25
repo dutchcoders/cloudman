@@ -207,7 +207,7 @@ fn get_instances_with_region(
                     if let Some(res_instances) = reservation.instances {
                         for instance in res_instances {
                             instances.push(Instance {
-                                instance: instance,
+                                instance,
                                 region: region.clone(),
                                 profile: profile.clone(),
                             });
@@ -312,7 +312,7 @@ fn run() {
         } else {
             opts.profile
                 .iter()
-                .flat_map(|r| r.split(","))
+                .flat_map(|r| r.split(','))
                 .map(|r| r.to_string())
                 .collect()
         }
@@ -328,11 +328,13 @@ fn run() {
 
     let mut siv = cursive_new();
 
-    let mut rv = ReturnValues::default();
-    rv.profiles = profiles;
-    rv.instances = instances.clone();
-    rv.regions = regions.clone();
-    rv.dry_run = !opts.disable_dry_run;
+    let rv = ReturnValues{
+        profiles,
+        regions: regions.clone(),
+        instances: instances.clone(),
+        dry_run: !opts.disable_dry_run,
+        ..Default::default()
+    };
 
     siv.set_user_data::<ReturnValues>(rv);
 
@@ -694,7 +696,7 @@ fn refresh(s: &mut Cursive) {
 
     match get_instances_with_region(ud.profiles.clone(), ud.regions.clone()) {
         Ok(instances) => {
-            let instances: Vec<Instance> = if ud.filter != "" {
+            let instances: Vec<Instance> = if !ud.filter.is_empty() {
                 instances
                     .into_iter()
                     .filter(|i| {
