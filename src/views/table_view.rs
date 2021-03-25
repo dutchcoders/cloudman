@@ -1,5 +1,8 @@
 extern crate cursive;
 
+use cursive::XY;
+use cursive::Rect;
+use cursive::view::scroll::Core;
 use cursive::direction::Direction;
 use cursive::event::*;
 use cursive::event::{Event, EventResult, Key};
@@ -14,12 +17,12 @@ use std::rc::Rc;
 
 pub type OnSubmit<T> = Option<Rc<dyn Fn(&mut Cursive, Option<T>)>>;
 
-pub struct InstancesView<
-    T: TableViewItem<H> + PartialEq,
-    H: Eq + Hash + Copy + Clone + Header + 'static,
-> {
+cursive::impl_scroller!(InstancesView<T, H>::core);
+
+pub struct InstancesView<T, H> {
     instances: Vec<T>,
-    scrollbase: ScrollBase,
+    core: cursive::view::scroll::Core,
+    // scrollbase: ScrollBase,
     current_index: usize,
     columns: Vec<H>,
 
@@ -65,7 +68,8 @@ impl<T: TableViewItem<H> + PartialEq + 'static, H: Eq + Hash + Copy + Clone + He
     pub fn new() -> Self {
         InstancesView {
             instances: vec![],
-            scrollbase: ScrollBase::new().right_padding(0),
+            // scrollbase: ScrollBase::new().right_padding(0),
+            core: Core::new(),
             current_index: 0,
             columns: vec![],
 
@@ -76,7 +80,8 @@ impl<T: TableViewItem<H> + PartialEq + 'static, H: Eq + Hash + Copy + Clone + He
     pub fn scrollable(instances: &[T]) -> Self {
         InstancesView {
             instances: instances.to_owned(),
-            scrollbase: ScrollBase::new().right_padding(0),
+            core: Core::new(),
+            // scrollbase: ScrollBase::new().right_padding(0),
             current_index: 0,
             columns: vec![],
 
@@ -111,6 +116,7 @@ impl<T: TableViewItem<H> + PartialEq + 'static, H: Eq + Hash + Copy + Clone + He
 
     pub fn set_selected_item(&mut self, i: usize) {
         self.current_index = i;
+        self.core.scroll_to(XY::new(0, self.current_index+2));
     }
 
     pub fn item(&self) -> Option<&T> {
@@ -147,15 +153,92 @@ impl<T: TableViewItem<H> + PartialEq + 'static, H: Eq + Hash + Copy + Clone + He
             })
         })
     }
+
+    fn inner_required_size(&mut self, constraint: Vec2) -> Vec2 {
+        let h = self.instances.len();
+        let h = std::cmp::max(h, constraint.y);
+
+        // +1 for header
+        Vec2::new(constraint.x, h+2)
+    }
+
+    fn inner_important_area(&self, size: Vec2) -> Rect {
+        Rect::from_size((0, 0), (size.x, self.instances.len() + 1))
+    }
+
+    fn inner_on_event(&mut self, event: Event) -> EventResult {
+        match event {
+            Event::Key(Key::Up) => {
+                if self.current_index > 0 {
+                    self.current_index -= 1;
+                    self.core.scroll_to(XY::new(0, self.current_index+2));
+                }
+                EventResult::Consumed(None)
+            }
+            Event::Key(Key::Down) => {
+                if self.current_index + 1 < self.instances.len() {
+                    self.current_index += 1;
+                    self.core.scroll_to(XY::new(0, self.current_index+2));
+                }
+                EventResult::Consumed(None)
+            }
+            Event::Char('g') => {
+                self.core.scroll_to_top();
+                EventResult::Consumed(None)
+            }
+            Event::Key(Key::PageUp) => {
+                if self.current_index < 10 {
+                    self.current_index = 0;
+                } else {
+                    self.current_index -= 10;
+                }
+                self.core.scroll_to(XY::new(0, self.current_index));
+                EventResult::Consumed(None)
+            }
+            Event::Key(Key::PageDown) => {
+                let idx = std::cmp::min(self.instances.len() - 1, self.current_index + 10);
+                self.current_index = idx;
+                self.core.scroll_to(XY::new(0, self.current_index+2));
+                EventResult::Consumed(None)
+            }
+            Event::Key(Key::Home) => {
+                self.current_index = 0;
+                self.core.scroll_to(XY::new(0, self.current_index));
+                EventResult::Consumed(None)
+            }
+            Event::Key(Key::End) => {
+                self.current_index = self.instances.len() - 1;
+                self.core.scroll_to(XY::new(0, self.current_index+2));
+                EventResult::Consumed(None)
+            }
+            Event::Shift(Key::Home) => {
+                self.current_index = 0;
+                self.core.scroll_to(XY::new(0, self.current_index));
+                EventResult::Consumed(None)
+            }
+            Event::Shift(Key::End) => {
+                self.current_index = self.instances.len() - 1;
+                self.core.scroll_to(XY::new(0, self.current_index+2));
+                EventResult::Consumed(None)
+            }
+            Event::Key(Key::Enter) => EventResult::Consumed(self.make_submit_cb()),
+            Event::Char('H') => {
+                self.current_index = self.instances.len() - 1;
+                self.core.scroll_to(XY::new(0, self.current_index+2));
+                EventResult::Consumed(None)
+            }
+            _ => EventResult::Ignored,
+        }
+    }
 }
 
 impl<T: TableViewItem<H> + PartialEq + 'static, H: Eq + Hash + Copy + Clone + Header + 'static> View
     for InstancesView<T, H>
 {
     fn draw(&self, printer: &Printer<'_, '_>) {
-        self.scrollbase.draw(printer, |printer, i| {
+        scroll::draw_lines(self, &printer, |_, printer, i| {
             // draw header
-            if i == 0 {
+            if i == self.core.content_viewport().top() {
                 printer.with_color(
                     ColorStyle::new(Color::Rgb(0, 0, 0), Color::Rgb(185, 202, 74)),
                     |printer| {
@@ -232,72 +315,43 @@ impl<T: TableViewItem<H> + PartialEq + 'static, H: Eq + Hash + Copy + Clone + He
         });
     }
 
-    fn required_size(&mut self, constraint: Vec2) -> Vec2 {
-        let h = self.instances.len();
-        let h = std::cmp::max(h, constraint.y);
+    fn required_size(&mut self, req: Vec2) -> Vec2 {
+        scroll::required_size(
+            self,
+            req,
+            true,
+            Self::inner_required_size,
+        )
+    }
 
-        self.scrollbase.set_heights(constraint.y, h);
+    fn layout(&mut self, size: Vec2) {
+        scroll::layout(
+            self,
+            size,
+            true,
+            |_s, _size| (),
+            Self::inner_required_size,
+        );
+    }
 
-        constraint
+    fn important_area(&self, size: Vec2) -> Rect {
+        scroll::important_area(
+            self,
+            size,
+            Self::inner_important_area,
+        )
+    }
+
+    fn on_event(&mut self, event: Event) -> EventResult {
+        scroll::on_event(
+            self,
+            event,
+            Self::inner_on_event,
+            Self::inner_important_area,
+        )
     }
 
     fn take_focus(&mut self, _: Direction) -> bool {
         true
-    }
-
-    fn on_event(&mut self, event: Event) -> EventResult {
-        match event {
-            Event::Key(Key::Up) => {
-                if self.current_index > 0 {
-                    self.current_index -= 1;
-                }
-                EventResult::Consumed(None)
-            }
-            Event::Key(Key::Down) => {
-                if self.current_index + 1 < self.instances.len() {
-                    self.current_index += 1;
-                }
-                EventResult::Consumed(None)
-            }
-            Event::Char('g') => {
-                self.scrollbase.scroll_top();
-                EventResult::Consumed(None)
-            }
-            Event::Key(Key::PageUp) => {
-                if self.current_index < 10 {
-                    self.current_index = 0;
-                } else {
-                    self.current_index -= 10;
-                }
-                EventResult::Consumed(None)
-            }
-            Event::Key(Key::PageDown) => {
-                let idx = std::cmp::min(self.instances.len() - 1, self.current_index + 10);
-                self.current_index = idx;
-                EventResult::Consumed(None)
-            }
-            Event::Key(Key::Home) => {
-                self.current_index = 0;
-                EventResult::Consumed(None)
-            }
-            Event::Key(Key::End) => {
-                self.current_index = self.instances.len() - 1;
-                EventResult::Consumed(None)
-            }
-            Event::Shift(Key::Home) => {
-                self.current_index = 0;
-                EventResult::Consumed(None)
-            }
-            Event::Shift(Key::End) => {
-                self.current_index = self.instances.len() - 1;
-                EventResult::Consumed(None)
-            }
-            Event::Key(Key::Enter) => EventResult::Consumed(self.make_submit_cb()),
-            Event::Char('H') => {
-                self.current_index = self.instances.len() - 1;
-                EventResult::Consumed(None)
-            }
-            _ => EventResult::Ignored,
-        }
     }
 }
