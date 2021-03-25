@@ -1,6 +1,6 @@
 [package]
 name = "cloudman-rs"
-version = "0.1.3"
+version = "0.1.6"
 authors = ["Remco Verhoef <remco@dutchcoders.io>"]
 edition = "2018"
 build = "build.rs"
