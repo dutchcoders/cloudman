@@ -21,7 +21,7 @@ The profiles and defaults as configured in ~/.aws/credentials will be used.
 Cloudman can be started optionally with a region and profile to use. 
 
 ```
-cloudman-rs 0.1.6
+cloudman-rs 0.1.7
 Remco Verhoef <remco@dutchcoders.io>
 
 USAGE:
