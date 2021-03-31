@@ -695,7 +695,7 @@ fn serial_connect(instance: &Instance) -> Result<(), Box<dyn Error>> {
               ssh-keygen -b 4096 -t rsa -f $TEMP_KEY -q -N \"\" && \
               aws --no-cli-pager --no-cli-auto-prompt --output text ec2-instance-connect send-serial-console-ssh-public-key --profile {profile} --region {region} --instance-id {instance_id} --ssh-public-key \"file://$TEMP_KEY.pub\" --serial-port {port} > /dev/null && \
               echo \"Key succesfully generated and send, connecting to terminal.\" && \
-              ssh -i \"$TEMP_KEY\" {instance_id}.port{port}@serial-console.ec2-instance-connect.{region}.aws; \
+              ssh -o IdentitiesOnly=yes -i \"$TEMP_KEY\" {instance_id}.port{port}@serial-console.ec2-instance-connect.{region}.aws; \
               rm $TEMP_KEY; \
               read -n 1 -s -r -p \"Press any key to continue\"",
                      instance_id=instance.instance.instance_id.clone().unwrap(),
@@ -716,7 +716,7 @@ fn connect(instance: &Instance) -> Result<(), Box<dyn Error>> {
         .arg("-h")
         .arg("bash")
         .arg("-c")
-        .arg(format!(r#"aws ssm start-session --profile "{:?}" --region "{:?}" --target "{:}"; read -n 1 -s -r -p "Press any key to continue""#, &instance.profile, instance.region.name(), instance.instance.instance_id.clone().unwrap()))
+        .arg(format!(r#"aws --no-cli-pager --no-cli-auto-prompt --output text ssm start-session --profile "{:?}" --region "{:?}" --target "{:}"; read -n 1 -s -r -p "Press any key to continue""#, &instance.profile, instance.region.name(), instance.instance.instance_id.clone().unwrap()))
         .output()?;
 
     Ok(())
