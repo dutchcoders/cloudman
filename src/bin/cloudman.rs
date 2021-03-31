@@ -386,6 +386,15 @@ fn run() {
                 let d = KeyCodeView::new(10).full_width().fixed_height(10);
                 s.add_layer(d);
             })
+            .on_event('L', |s| {
+                let table = s
+                    .find_name::<InstancesView<Instance, BasicColumn>>("instances")
+                    .unwrap();
+
+                if let Some(instance) = table.item() {
+                    instance_log(s, instance);
+                }
+            })
             .on_event('l', |s| {
                 let table = s
                     .find_name::<InstancesView<Instance, BasicColumn>>("instances")
