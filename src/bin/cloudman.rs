@@ -66,6 +66,8 @@ enum Actions {
     Stop,
     Terminate,
     Reboot,
+    Connect,
+    SerialConnect,
 }
 
 #[derive(Clone, PartialEq)]
@@ -671,6 +673,32 @@ fn update_bottom_bar(s: &mut Cursive) {
     }
 }
 
+fn serial_connect(instance: &Instance) -> Result<(), Box<dyn Error>> {
+    env::var("TMUX")?;
+
+    Command::new("tmux")
+        .arg("split-window")
+        .arg("-h")
+        .arg("bash")
+        .arg("-c")
+        .arg(format!(
+              "TEMP_KEY=$(mktemp -u)
+              ssh-keygen -b 4096 -t rsa -f $TEMP_KEY -q -N \"\" && \
+              aws --no-cli-pager --no-cli-auto-prompt --output text ec2-instance-connect send-serial-console-ssh-public-key --profile {profile} --region {region} --instance-id {instance_id} --ssh-public-key \"file://$TEMP_KEY.pub\" --serial-port {port} > /dev/null && \
+              echo \"Key succesfully generated and send, connecting to terminal.\" && \
+              ssh -i \"$TEMP_KEY\" {instance_id}.port{port}@serial-console.ec2-instance-connect.{region}.aws; \
+              rm $TEMP_KEY; \
+              read -n 1 -s -r -p \"Press any key to continue\"",
+                     instance_id=instance.instance.instance_id.clone().unwrap(),
+                     profile=&instance.profile,
+                     port=0,
+                     region=instance.region.name(),
+        ))
+        .output()?;
+
+    Ok(())
+}
+
 fn connect(instance: &Instance) -> Result<(), Box<dyn Error>> {
     env::var("TMUX")?;
 
@@ -1092,6 +1120,8 @@ fn action(s: &mut Cursive) {
         .item("start", Actions::Start)
         .item("stop", Actions::Stop)
         .item("terminate", Actions::Terminate)
+        .item("connect (ssm)", Actions::Connect)
+        .item("connect (serial)", Actions::SerialConnect)
         .item("reboot", Actions::Reboot);
 
     fn ok(s: &mut Cursive, action: &Actions) {
@@ -1189,6 +1219,12 @@ fn action(s: &mut Cursive) {
                         error_dialog(s, "Could not stop instance.", &format!("{}", err));
                     }
                 };
+            }
+            Actions::Connect => {
+                connect(&instance.unwrap());
+            }
+            Actions::SerialConnect => {
+                serial_connect(&instance.unwrap());
             }
             Actions::Terminate => {
                 let req = TerminateInstancesRequest {
