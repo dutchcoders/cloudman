@@ -55,11 +55,20 @@ OPTIONS:
 
 ## Installation
 
+### Homebrew
 If you're a **macOS Homebrew** or a **Linuxbrew** user, then you can install
 cloudman from homebrew tap:
 
+```bash
+brew install dutchcoders/cloudman/cloudman
 ```
-$ brew install dutchcoders/cloudman/cloudman
+
+### MacPorts
+If you're a **MacPorts** user, you can install Cloudman using:
+
+```bash
+sudo port selfupdate
+sudo port install cloudman
 ```
 
 ## Building
